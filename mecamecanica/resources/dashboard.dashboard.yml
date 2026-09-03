@@ -1,0 +1,11 @@
+# Dashboard comercial (AI/BI, Lakeview) como código — sobe junto com o bundle.
+# dataset_schema é o literal "gold" (a camada), não ${var.schema} (que aqui
+# significa dev/prod).
+resources:
+  dashboards:
+    dashboard_comercial:
+      display_name: "Comercial — Vendas (mecamecanica)"
+      file_path: dashboard-comercial.lvdash.json
+      warehouse_id: ${var.warehouse_id}
+      dataset_catalog: ${var.catalog}
+      dataset_schema: gold
