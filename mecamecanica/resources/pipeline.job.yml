@@ -21,6 +21,38 @@ resources:
             notebook_path: ../src/bronze/ingestao.py
             base_parameters:
               catalog: ${var.catalog}
+        - task_key: silver_clientes
+          depends_on:
+            - task_key: bronze_ingestao
+          sql_task:
+            warehouse_id: ${var.warehouse_id}
+            file:
+              path: ../src/silver/01-clientes.sql
+              source: WORKSPACE
+        - task_key: silver_pedidos
+          depends_on:
+            - task_key: bronze_ingestao
+          sql_task:
+            warehouse_id: ${var.warehouse_id}
+            file:
+              path: ../src/silver/02-pedidos.sql
+              source: WORKSPACE
+        - task_key: silver_itens_e_produtos
+          depends_on:
+            - task_key: bronze_ingestao
+          sql_task:
+            warehouse_id: ${var.warehouse_id}
+            file:
+              path: ../src/silver/03-itens-e-produtos.sql
+              source: WORKSPACE
+        - task_key: silver_crm_e_financeiro
+          depends_on:
+            - task_key: bronze_ingestao
+          sql_task:
+            warehouse_id: ${var.warehouse_id}
+            file:
+              path: ../src/silver/04-crm-e-financeiro.sql
+              source: WORKSPACE
       schedule:
         quartz_cron_expression: "0 0 6 * * ?"
         timezone_id: America/Sao_Paulo
