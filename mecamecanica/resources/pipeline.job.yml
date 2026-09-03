@@ -1,8 +1,11 @@
 # Job mecamecanica_pipeline — cresce ao longo das 6 entregas do curso:
-#   1. raw_conferencia   (feito) — confere a chegada dos CSVs no Volume bronze.raw
-#   2. bronze_ingestao   (feito) — grava as 10 tabelas Delta da bronze, tudo STRING
-#   3..6. entregas seguintes acrescentam transformação silver, agregação gold,
-#         qualidade/testes e publicação — cada uma dependendo da tarefa
+#   1. raw_conferencia          (feito) — confere a chegada dos CSVs no Volume bronze.raw
+#   2. bronze_ingestao          (feito) — grava as 10 tabelas Delta da bronze, tudo STRING
+#   3. silver_* (4 tarefas)     (feito) — limpa, tipa e declara o contrato das 10 tabelas silver, em paralelo
+#   4. gold_dimensoes, gold_fato_vendas, gold_marts, testes
+#                               (feito) — dimensões conformadas, fato_vendas, 3 marts e
+#                               9 testes de qualidade que derrubam o job se falharem
+#   5..6. entregas seguintes acrescentam publicação — dependendo da tarefa
 #         anterior via depends_on.
 resources:
   jobs:
@@ -52,6 +55,41 @@ resources:
             warehouse_id: ${var.warehouse_id}
             file:
               path: ../src/silver/04-crm-e-financeiro.sql
+              source: WORKSPACE
+        - task_key: gold_dimensoes
+          depends_on:
+            - task_key: silver_clientes
+            - task_key: silver_pedidos
+            - task_key: silver_itens_e_produtos
+            - task_key: silver_crm_e_financeiro
+          sql_task:
+            warehouse_id: ${var.warehouse_id}
+            file:
+              path: ../src/gold/05-dimensoes.sql
+              source: WORKSPACE
+        - task_key: gold_fato_vendas
+          depends_on:
+            - task_key: gold_dimensoes
+          sql_task:
+            warehouse_id: ${var.warehouse_id}
+            file:
+              path: ../src/gold/06-fato-vendas.sql
+              source: WORKSPACE
+        - task_key: gold_marts
+          depends_on:
+            - task_key: gold_fato_vendas
+          sql_task:
+            warehouse_id: ${var.warehouse_id}
+            file:
+              path: ../src/gold/07-marts.sql
+              source: WORKSPACE
+        - task_key: testes
+          depends_on:
+            - task_key: gold_marts
+          sql_task:
+            warehouse_id: ${var.warehouse_id}
+            file:
+              path: ../src/gold/08-testes.sql
               source: WORKSPACE
       schedule:
         quartz_cron_expression: "0 0 6 * * ?"
