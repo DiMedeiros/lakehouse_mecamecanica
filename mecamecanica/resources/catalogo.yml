@@ -1,0 +1,26 @@
+# Schemas e volume da camada raw/bronze do catálogo ${var.catalog}.
+#
+# O catálogo em si NÃO é recurso deste bundle — veja scripts/criar-catalogo.sh
+# e o comentário em databricks.yml sobre por que ele fica fora do bundle.
+resources:
+  schemas:
+    bronze:
+      catalog_name: ${var.catalog}
+      name: bronze
+      comment: "Camada bronze: tabelas cruas, uma linha por registro de origem, sem transformação."
+    silver:
+      catalog_name: ${var.catalog}
+      name: silver
+      comment: "Camada silver: dados limpos e conformados, prontos para modelagem."
+    gold:
+      catalog_name: ${var.catalog}
+      name: gold
+      comment: "Camada gold: agregações e métricas de negócio, prontas para consumo."
+
+  volumes:
+    raw:
+      catalog_name: ${var.catalog}
+      schema_name: ${resources.schemas.bronze.name}
+      name: raw
+      volume_type: MANAGED
+      comment: "Guarda os arquivos originais (CSV) exatamente como chegaram do ERP/CRM, antes de qualquer leitura em tabela."

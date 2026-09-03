@@ -1,0 +1,19 @@
+# Job mecamecanica_pipeline — cresce ao longo das 6 entregas do curso:
+#   1. raw_conferencia   (esta entrega)  — confere a chegada dos CSVs no Volume bronze.raw
+#   2..6. entregas seguintes acrescentam as tarefas de ingestão bronze,
+#         transformação silver, agregação gold, qualidade/testes e publicação —
+#         cada uma dependendo da tarefa anterior via depends_on.
+resources:
+  jobs:
+    mecamecanica_pipeline:
+      name: mecamecanica_pipeline
+      tasks:
+        - task_key: raw_conferencia
+          notebook_task:
+            notebook_path: ../src/raw/conferencia.py
+            base_parameters:
+              catalog: ${var.catalog}
+      schedule:
+        quartz_cron_expression: "0 0 6 * * ?"
+        timezone_id: America/Sao_Paulo
+        pause_status: UNPAUSED
