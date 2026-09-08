@@ -1,249 +1,345 @@
 # Databricks notebook source
 # MAGIC %md
-# MAGIC # ML · modelo de propensão de compra
+# MAGIC # ML · o modelo
 # MAGIC
-# MAGIC Treina em `gold.features_treino`, mede num holdout que o modelo nunca viu, e
-# MAGIC só então pontua `gold.features_cliente` para a semana. Cada treino grava uma
-# MAGIC linha nova em `gold.modelo_metricas` (nunca sobrescreve) e registra uma nova
-# MAGIC versão do modelo no Unity Catalog — é assim que dá para responder "esse
-# MAGIC treino ficou melhor ou pior que o anterior" sem abrir o MLflow.
+# MAGIC A ordem deste notebook é a ordem que importa, e ela começa antes do
+# MAGIC `.fit()`:
 # MAGIC
-# MAGIC Restrições do Free Edition serverless, medidas contra o workspace:
-# MAGIC - `HistGradientBoostingClassifier`, não XGBoost — XGBoost registra mas não
-# MAGIC   recarrega aqui (`__sklearn_tags__`, conflito de versão do scikit-learn).
-# MAGIC - Sem endpoint de modelo próprio: o consumo é batch, com
-# MAGIC   `mlflow.sklearn.load_model` + pandas (`pyfunc.spark_udf` não roda no
-# MAGIC   serverless).
-# MAGIC - `predict_proba()`, não `predict()` — este último devolve a classe, não o
-# MAGIC   score.
+# MAGIC 1. **o baseline** — quanto valem as regras que a empresa já usa de graça
+# MAGIC 2. o treino, que são três linhas
+# MAGIC 3. as duas métricas: `auc` para quem treina, `lift_top200` para a reunião
+# MAGIC 4. o MLflow e o Unity Catalog
+# MAGIC 5. **três testes que interrompem a tarefa**
+# MAGIC 6. o score, que é o que a fila semanal consome
+# MAGIC
+# MAGIC Sem o passo 1, "AUC 0,85" não quer dizer nada. Com ele, vira "ganha da
+# MAGIC melhor regra simples por tanto" — que é uma frase que se leva para uma
+# MAGIC reunião.
 
 # COMMAND ----------
 
 dbutils.widgets.text("catalog", "lakehouse_mecamecanica")
 catalog = dbutils.widgets.get("catalog")
 
-JANELA_DIAS = 7
-SEED = 42
+MODELO = f"{catalog}.gold.propensao_compra"
+ALVO = "comprou_em_7d"
+SEMENTE = 42
+
+# Quantas ligações o time faz por semana. É o tamanho da fila, e é o que torna
+# lift_top200 a métrica desta operação e não de outra.
+TOP_N = 200
 
 import mlflow
-import mlflow.sklearn
 import numpy as np
 import pandas as pd
 from databricks.sdk import WorkspaceClient
-from pyspark.sql import functions as F, Window
 from sklearn.ensemble import HistGradientBoostingClassifier
 from sklearn.inspection import permutation_importance
 from sklearn.metrics import roc_auc_score
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import StratifiedKFold, train_test_split
 
-mlflow.set_tracking_uri("databricks")
 mlflow.set_registry_uri("databricks-uc")
 
-# COMMAND ----------
+dados = spark.table(f"{catalog}.gold.features_treino").toPandas()
+FEATURES = [c for c in dados.columns if c not in ("cliente_id", ALVO, "_referencia")]
 
-FEATURES = [
-    "recencia_dias", "frequencia_pedidos", "valor_total", "margem_total",
-    "ticket_medio", "margem_percentual",
-    "intervalo_medio_dias", "desvio_intervalo_dias", "pedidos_ultimos_90d",
-    "oportunidades_abertas", "oportunidades_ganhas", "taxa_ganho",
-    "visitas_90d", "conversao_visita",
-    "skus_distintos", "categorias_distintas", "marcas_distintas",
-    "concentracao_marca_top", "comprou_lancamento", "atraso_relativo",
-]
+X = dados[FEATURES].astype(float)
+y = dados[ALVO].astype(int)
 
-treino_pd = spark.table(f"{catalog}.gold.features_treino").toPandas()
-X_treino, X_holdout, y_treino, y_holdout = train_test_split(
-    treino_pd[FEATURES], treino_pd["comprou_em_7d"],
-    test_size=0.25, random_state=SEED, stratify=treino_pd["comprou_em_7d"],
+X_tr, X_te, y_tr, y_te = train_test_split(
+    X, y, test_size=0.25, stratify=y, random_state=SEMENTE
 )
+
+taxa_base = float(y.mean())
+print(f"{len(dados)} clientes × {len(FEATURES)} features")
+print(f"taxa base: {100 * taxa_base:.2f}%  —  de {TOP_N} ligações às cegas, "
+      f"{round(TOP_N * taxa_base)} viram pedido")
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Treino e avaliação contra três regras simples
+# MAGIC ## 1 · O baseline, antes de treinar qualquer coisa
 # MAGIC
-# MAGIC AUC sozinho não convence ninguém do comercial. `lift_top200` sim: quantas
-# MAGIC vezes mais acerto o modelo dá nos 200 primeiros da fila, comparado com
-# MAGIC ligar às cegas (a `taxa_base`). As três regras — ordenar por recência, por
-# MAGIC valor histórico, por atraso relativo — são o que a empresa faria sem
-# MAGIC modelo nenhum: se o modelo não bater a melhor delas, ele não paga o
-# MAGIC trabalho de manter.
+# MAGIC As três regras que qualquer gerente comercial defenderia numa reunião,
+# MAGIC medidas na mesma régua. É o momento que não precisa de modelo nenhum para
+# MAGIC acontecer — e é a régua do teste 1.
 
 # COMMAND ----------
 
-modelo = HistGradientBoostingClassifier(random_state=SEED)
-modelo.fit(X_treino, y_treino)
 
-score_holdout = modelo.predict_proba(X_holdout)[:, 1]
-auc = float(roc_auc_score(y_holdout, score_holdout))
+def auc_da_regra(coluna, sinal=1):
+    """AUC usando uma coluna crua como se fosse o score."""
+    # roc_auc_score não aceita NaN, e atraso_relativo é nulo de propósito para
+    # quem tem um pedido só. Preencher com a mediana mantém a comparação justa.
+    valores = X_te[coluna].fillna(X_te[coluna].median())
+    return roc_auc_score(y_te, sinal * valores)
 
-# baseline: cada regra usada como score, sem inverter sinal — recência "crua"
-# prevê mal de propósito (comprou há pouco != vai comprar essa semana), e é
-# isso que o número tem que mostrar.
-baseline_recencia = float(roc_auc_score(y_holdout, X_holdout["recencia_dias"]))
-baseline_valor_total = float(roc_auc_score(y_holdout, X_holdout["valor_total"]))
-baseline_atraso = float(roc_auc_score(y_holdout, X_holdout["atraso_relativo"]))
 
-taxa_base = float(treino_pd["comprou_em_7d"].mean())
+baselines = {
+    "ligue para quem comprou recentemente": auc_da_regra("recencia_dias", -1),
+    "jogar uma moeda": 0.5,
+    "ligue para quem compra mais": auc_da_regra("valor_total"),
+    "ligue para quem está atrasado": auc_da_regra("atraso_relativo"),
+}
 
-top200 = (
-    pd.DataFrame({"y": y_holdout.to_numpy(), "score": score_holdout})
-    .sort_values("score", ascending=False)
-    .head(200)
-)
-acertos_top200 = int(top200["y"].sum())
-lift_top200 = acertos_top200 / (200 * taxa_base)
+print("A intuição comercial, na régua do AUC\n")
+for regra, valor in sorted(baselines.items(), key=lambda kv: kv[1]):
+    marca = "  ← pior que a moeda" if valor < 0.5 else ""
+    print(f"  {valor:.4f}   {regra}{marca}")
 
-importancia = permutation_importance(
-    modelo, X_holdout, y_holdout, n_repeats=10, random_state=SEED, scoring="roc_auc"
-)
-feature_mais_importante = FEATURES[int(np.argmax(importancia.importances_mean))]
-
-print(f"AUC holdout: {auc:.4f} | lift_top200: {lift_top200:.2f} | "
-      f"baselines: recencia={baseline_recencia:.3f} valor_total={baseline_valor_total:.3f} "
-      f"atraso_relativo={baseline_atraso:.3f} | feature top: {feature_mais_importante}")
+# a régua do teste 1: o modelo tem que ganhar da MELHOR delas.
+melhor_baseline = max(v for k, v in baselines.items() if k != "jogar uma moeda")
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Registro no MLflow/Unity Catalog
+# MAGIC ## 2 · O treino — a parte que todo mundo acha que é o trabalho
 # MAGIC
-# MAGIC `mlflow.set_experiment` não cria a pasta pai — sem o `mkdirs` antes, quebra
-# MAGIC com `BAD_REQUEST: For input string: "None"`. E este workspace traz MLflow
-# MAGIC 2.22: `log_model(..., artifact_path=...)`, nunca o `name=` do MLflow 3.
+# MAGIC `HistGradientBoostingClassifier`, e não XGBoost: no serverless o XGBoost
+# MAGIC treina, registra e **falha ao carregar de volta** (`__sklearn_tags__`,
+# MAGIC conflito com scikit-learn 1.6.1). O pior tipo de erro — aparece uma
+# MAGIC tarefa depois.
+# MAGIC
+# MAGIC Nada de imputar nulo: esta árvore trata `NaN` nativamente, e as features
+# MAGIC de ritmo são nulas de propósito para quem comprou uma vez só.
 
 # COMMAND ----------
 
-usuario = spark.sql("SELECT current_user()").collect()[0][0]
-experimento = f"/Users/{usuario}/mecamecanica_propensao_compra"
+modelo = HistGradientBoostingClassifier(random_state=SEMENTE)
+modelo.fit(X_tr, y_tr)
 
-WorkspaceClient().workspace.mkdirs(f"/Users/{usuario}")
-mlflow.set_experiment(experimento)
+auc = float(roc_auc_score(y_te, modelo.predict_proba(X_te)[:, 1]))
+print(f"AUC do modelo: {auc:.4f}   (melhor baseline: {melhor_baseline:.4f})")
 
-model_name = f"{catalog}.gold.propensao_compra"
+# COMMAND ----------
 
-with mlflow.start_run(run_name=f"propensao_compra_{pd.Timestamp.utcnow():%Y%m%d_%H%M%S}") as run:
-    mlflow.log_param("modelo", "HistGradientBoostingClassifier")
-    mlflow.log_param("random_state", SEED)
-    mlflow.log_param("janela_dias", JANELA_DIAS)
-    mlflow.log_metric("auc_holdout", auc)
-    mlflow.log_metric("lift_top200", lift_top200)
-    mlflow.log_metric("baseline_recencia", baseline_recencia)
-    mlflow.log_metric("baseline_valor_total", baseline_valor_total)
-    mlflow.log_metric("baseline_atraso", baseline_atraso)
+# MAGIC %md
+# MAGIC ## 3 · `lift_top200` — a métrica que responde o diretor
+# MAGIC
+# MAGIC AUC é métrica de quem treina. A pergunta que paga o projeto é *"dos 200
+# MAGIC que eu ligar, quantos compram?"*.
+# MAGIC
+# MAGIC O score sai por **validação cruzada out-of-fold** sobre a base inteira, e
+# MAGIC não só no holdout: a fila real são 200 entre milhares. No holdout de 25%,
+# MAGIC os 200 primeiros seriam uma fatia grande demais da amostra e o número
+# MAGIC sairia otimista.
 
-    mlflow.sklearn.log_model(
-        modelo,
-        artifact_path="modelo",
-        registered_model_name=model_name,
-        input_example=X_treino.head(5),
+# COMMAND ----------
+
+oof = np.zeros(len(y), dtype=float)
+for treino_idx, teste_idx in StratifiedKFold(5, shuffle=True, random_state=SEMENTE).split(X, y):
+    m = HistGradientBoostingClassifier(random_state=SEMENTE)
+    m.fit(X.iloc[treino_idx], y.iloc[treino_idx])
+    oof[teste_idx] = m.predict_proba(X.iloc[teste_idx])[:, 1]
+
+topo = np.argsort(-oof)[:TOP_N]
+acertos_top200 = int(y.iloc[topo].sum())
+lift_top200 = float(y.iloc[topo].mean() / taxa_base)
+
+print(f"Dos {TOP_N} de maior score, {acertos_top200} compraram na semana seguinte.")
+print(f"Às cegas seriam {round(TOP_N * taxa_base)}.  Lift: {lift_top200:.2f}×")
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## 4 · O que o modelo realmente olhou
+# MAGIC
+# MAGIC Importância por **permutação**, medida no holdout: embaralha uma coluna
+# MAGIC por vez e mede quanto o AUC piora. É medida, não é o
+# MAGIC `feature_importances_` que a biblioteca chuta.
+
+# COMMAND ----------
+
+perm = permutation_importance(
+    modelo, X_te, y_te, scoring="roc_auc", n_repeats=5, random_state=SEMENTE
+)
+importancia = (pd.DataFrame({"feature": FEATURES, "peso": perm.importances_mean})
+                 .sort_values("peso", ascending=False)
+                 .reset_index(drop=True))
+print(importancia.head(10).to_string(index=False))
+
+feature_top = importancia.iloc[0]["feature"]
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## 5 · MLflow e Unity Catalog — o modelo vira objeto de catálogo
+# MAGIC
+# MAGIC `set_experiment` **não cria a pasta pai**, e o erro não menciona pasta
+# MAGIC nenhuma: `BAD_REQUEST: For input string: "None"`. Por isso o `mkdirs`
+# MAGIC vem antes.
+# MAGIC
+# MAGIC O serverless traz **MLflow 2.22**: é `log_model(..., artifact_path=...)`,
+# MAGIC nunca o `name=` do MLflow 3.
+
+# COMMAND ----------
+
+usuario = WorkspaceClient().current_user.me().user_name
+PASTA = f"/Users/{usuario}/mecamecanica"
+WorkspaceClient().workspace.mkdirs(PASTA)
+
+mlflow.set_experiment(f"{PASTA}/propensao_compra")
+
+# tabelas de metadado só ganham COMMENT na primeira execução — saveAsTable não
+# grava comment de tabela, e não faz sentido repetir o COMMENT ON a cada dia
+primeira_execucao = not spark.catalog.tableExists(f"{catalog}.gold.modelo_metricas")
+
+with mlflow.start_run(run_name="propensao_compra") as run:
+    mlflow.log_params({
+        "algoritmo": "HistGradientBoostingClassifier",
+        "random_state": SEMENTE,
+        "corte_treino": str(dados["_referencia"].iloc[0]),
+        "janela_dias": 7,
+        "features": len(FEATURES),
+        "linhas_treino": len(X_tr),
+    })
+    mlflow.log_metrics({
+        "auc": auc,
+        "lift_top200": lift_top200,
+        "acertos_top200": acertos_top200,
+        "taxa_base": taxa_base,
+        "baseline_recencia": baselines["ligue para quem comprou recentemente"],
+        "baseline_valor_total": baselines["ligue para quem compra mais"],
+        "baseline_atraso": baselines["ligue para quem está atrasado"],
+    })
+    info = mlflow.sklearn.log_model(
+        modelo, artifact_path="modelo", registered_model_name=MODELO,
+        input_example=X_tr.head(3),
     )
 
-versoes = mlflow.MlflowClient().search_model_versions(f"name='{model_name}'")
-versao_uc = max(int(v.version) for v in versoes)
+versao = int(info.registered_model_version)
+mlflow.MlflowClient().set_registered_model_alias(MODELO, "prod", versao)
+print(f"{MODELO} versão {versao} registrada, com o alias @prod")
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Score de todos os clientes elegíveis e faixas em quartis
+# MAGIC ## 6 · Os três testes que interrompem a tarefa
 # MAGIC
-# MAGIC `predict_proba()`, nunca `predict()`: a fila ordena por probabilidade
-# MAGIC contínua, não por classe 0/1.
+# MAGIC Um dado errado quebra. Um modelo ruim **funciona** — devolve nota para
+# MAGIC todo mundo, na faixa certa, sem erro nenhum. Por isso ele entra nos
+# MAGIC mesmos testes que o dado.
 
 # COMMAND ----------
 
-cliente_pd = spark.table(f"{catalog}.gold.features_cliente").toPandas()
-score_cliente = modelo.predict_proba(cliente_pd[FEATURES])[:, 1]
+assert auc > melhor_baseline + 0.05, (
+    f"o modelo ({auc:.4f}) não ganha da melhor regra simples ({melhor_baseline:.4f}) "
+    "por uma margem que justifique existir. Sem isso, o projeto não se paga."
+)
+assert auc < 0.99, (
+    f"AUC de {auc:.4f} é bom DEMAIS. Em propensão de compra isso não é "
+    "competência, é vazamento: alguma feature enxergou o que houve depois do corte."
+)
+assert lift_top200 >= 2.5, (
+    f"lift de {lift_top200:.2f}× é baixo demais para justificar a fila. "
+    "O vendedor faria quase o mesmo ligando no chute."
+)
+print("os três testes passaram")
 
-referencia = cliente_pd["_referencia"].iloc[0]
+# COMMAND ----------
 
-versao = 1
-if spark.catalog.tableExists(f"{catalog}.gold.modelo_metricas"):
-    ultima = spark.sql(f"SELECT COALESCE(MAX(versao), 0) AS v FROM {catalog}.gold.modelo_metricas").collect()[0]["v"]
-    versao = int(ultima) + 1
+# MAGIC %md
+# MAGIC ## 7 · O score — todos os clientes elegíveis, com nota
+# MAGIC
+# MAGIC `mlflow.pyfunc.spark_udf` **não roda no serverless**
+# MAGIC (`InvalidVersion: '18.x-aarch64-photon-scala2'`) e é o caminho que toda a
+# MAGIC documentação recomenda. A saída é `load_model` + pandas — e para poucos
+# MAGIC milhares de clientes isso é a escolha certa de qualquer forma.
+# MAGIC
+# MAGIC Recarregar pelo alias `@prod` (em vez de reusar o `modelo` em memória)
+# MAGIC prova que o alias funciona e garante que quem pontua é sempre a versão em
+# MAGIC produção. E é `predict_proba`, nunca `predict`: `predict` devolve a
+# MAGIC **classe**, e a coluna inteira viraria zero e um.
 
-score_propensao = spark.createDataFrame(
-    pd.DataFrame({
-        "cliente_id": cliente_pd["cliente_id"].astype(int),
-        "score": score_cliente,
-        "_referencia": referencia,
+# COMMAND ----------
+
+carregado = mlflow.sklearn.load_model(f"models:/{MODELO}@prod")
+
+atual = spark.table(f"{catalog}.gold.features_cliente").toPandas()
+# as colunas do treino, na ordem do treino — não confiar na ordem da tabela
+X_atual = atual[list(carregado.feature_names_in_)].astype(float)
+
+score = pd.DataFrame({
+    "cliente_id": atual["cliente_id"].astype("int32"),
+    "score": carregado.predict_proba(X_atual)[:, 1],
+    "_referencia": atual["_referencia"],
+})
+score["faixa"] = pd.qcut(
+    score["score"].rank(method="first"), 4,
+    labels=["Fria", "Morna", "Quente", "Muito quente"],
+).astype(str)
+score["versao"] = versao
+
+# é uma foto da semana, não um histórico — overwrite, nunca append
+(spark.createDataFrame(score)
+      .write.mode("overwrite").option("overwriteSchema", "true")
+      .saveAsTable(f"{catalog}.gold.score_propensao"))
+
+if primeira_execucao:
+    spark.sql(f"""
+    COMMENT ON TABLE {catalog}.gold.score_propensao IS
+    'Propensão de compra na semana seguinte, por cliente, com a faixa em quartis e
+     a versão do modelo que gerou a nota. É desta tabela que sai a fila do dia.'
+    """)
+
+print(f"score_propensao: {len(score)} clientes · "
+      f"{(score.faixa == 'Muito quente').sum()} muito quentes")
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## 8 · As métricas também viram tabela
+# MAGIC
+# MAGIC O Genie não lê MLflow, e daqui a seis meses ninguém abre a interface de
+# MAGIC experimento. O que precisa ser consultável tem que estar na gold.
+
+# COMMAND ----------
+
+from pyspark.sql import functions as F
+
+metricas = (spark.createDataFrame(pd.DataFrame([{
         "versao": versao,
-    })
-).withColumn(
-    # NTILE(4) por score: quartil 1 = menor score (Fria) .. quartil 4 = maior (Muito quente)
-    "faixa",
-    F.element_at(
-        F.array(F.lit("Fria"), F.lit("Morna"), F.lit("Quente"), F.lit("Muito quente")),
-        F.ntile(4).over(Window.orderBy("score")),
-    ),
-)
+        "auc": auc,
+        "lift_top200": lift_top200,
+        "acertos_top200": acertos_top200,
+        "taxa_base": taxa_base,
+        "baseline_recencia": baselines["ligue para quem comprou recentemente"],
+        "baseline_valor_total": baselines["ligue para quem compra mais"],
+        "baseline_atraso": baselines["ligue para quem está atrasado"],
+        "feature_mais_importante": feature_top,
+    }]))
+    .withColumn("_treinado_em", F.current_timestamp()))
 
-(score_propensao.write.mode("append").saveAsTable(f"{catalog}.gold.score_propensao"))
+(metricas.write.mode("append").option("mergeSchema", "true")
+         .saveAsTable(f"{catalog}.gold.modelo_metricas"))
 
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ## Calibragem no holdout — a prova de que o score ordena
-# MAGIC
-# MAGIC Taxa de compra crescente de Fria para Muito quente, medida em clientes que
-# MAGIC o modelo NÃO viu no treino. Não precisa saber o que é curva ROC para ler
-# MAGIC esta tabela.
-
-# COMMAND ----------
-
-holdout_pd = pd.DataFrame({"y": y_holdout.to_numpy(), "score": score_holdout})
-holdout_sdf = spark.createDataFrame(holdout_pd).withColumn(
-    "faixa",
-    F.element_at(
-        F.array(F.lit("Fria"), F.lit("Morna"), F.lit("Quente"), F.lit("Muito quente")),
-        F.ntile(4).over(Window.orderBy("score")),
-    ),
-)
-
-calibragem = holdout_sdf.groupBy("faixa").agg(
-    F.count("*").alias("clientes"),
-    F.sum("y").alias("compraram"),
-    (F.sum("y") / F.count("*")).alias("taxa_de_compra"),
-    F.avg("score").alias("score_medio"),
-)
-
-(calibragem.write.mode("overwrite").option("overwriteSchema", "true")
-           .saveAsTable(f"{catalog}.gold.calibragem_holdout"))
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ## Histórico de métricas — uma linha por treino, nunca sobrescrita
-
-# COMMAND ----------
-
-metricas = spark.createDataFrame([{
-    "versao": versao,
-    "auc": auc,
-    "lift_top200": float(lift_top200),
-    "acertos_top200": acertos_top200,
-    "taxa_base": taxa_base,
-    "baseline_recencia": baseline_recencia,
-    "baseline_valor_total": baseline_valor_total,
-    "baseline_atraso": baseline_atraso,
-    "feature_mais_importante": feature_mais_importante,
-}]).withColumn("_treinado_em", F.current_timestamp())
-
-(metricas.write.mode("append").saveAsTable(f"{catalog}.gold.modelo_metricas"))
-
-# saveAsTable não grava COMMENT de tabela, e só precisa rodar uma vez
-if versao == 1:
+if primeira_execucao:
     spark.sql(f"""
     COMMENT ON TABLE {catalog}.gold.modelo_metricas IS
     'Uma linha por treino: AUC, lift_top200, acertos entre os 200 primeiros, taxa
      base e o AUC de cada regra simples. É o histórico que responde "o modelo está
      melhor ou pior que o treino anterior" sem abrir o MLflow.'
     """)
-    spark.sql(f"""
-    COMMENT ON TABLE {catalog}.gold.score_propensao IS
-    'Propensão de compra na semana seguinte, por cliente, com a faixa em quartis e
-     a versão do modelo que gerou a nota. É desta tabela que sai a fila do dia.'
-    """)
+
+# a calibragem sai do HOLDOUT, que tem o rótulo — é a prova que o comercial
+# confere sozinho, sem ouvir a palavra AUC uma única vez
+holdout = pd.DataFrame({"score": modelo.predict_proba(X_te)[:, 1], "comprou": y_te.values})
+holdout["faixa"] = pd.qcut(
+    holdout["score"].rank(method="first"), 4,
+    labels=["Fria", "Morna", "Quente", "Muito quente"],
+).astype(str)
+
+calibragem = (holdout.groupby("faixa", as_index=False)
+              .agg(clientes=("comprou", "size"),
+                   compraram=("comprou", "sum"),
+                   taxa_de_compra=("comprou", "mean"),
+                   score_medio=("score", "mean")))
+
+(spark.createDataFrame(calibragem)
+      .write.mode("overwrite").option("overwriteSchema", "true")
+      .saveAsTable(f"{catalog}.gold.calibragem_holdout"))
+
+if primeira_execucao:
     spark.sql(f"""
     COMMENT ON TABLE {catalog}.gold.calibragem_holdout IS
     'Taxa de compra por faixa de score, medida nos clientes que o modelo NÃO viu no
@@ -251,5 +347,4 @@ if versao == 1:
      confere sem saber o que é curva ROC.'
     """)
 
-print(f"versão {versao} · modelo UC v{versao_uc} · AUC {auc:.4f} · lift_top200 {lift_top200:.2f} "
-      f"· feature top: {feature_mais_importante}")
+print(calibragem.to_string(index=False))
