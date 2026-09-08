@@ -1,0 +1,475 @@
+{
+  "config": {
+    "sample_questions": [
+      {
+        "id": "247ba8207034ad8942f1607e8efc8833",
+        "question": [
+          "Quem eu ligo essa semana?"
+        ]
+      },
+      {
+        "id": "a3441583407427bd55d30b4846bd9f24",
+        "question": [
+          "Quanto vale a fila desta semana?"
+        ]
+      },
+      {
+        "id": "be4497a6199af7f2e727bbc7a3fb98d9",
+        "question": [
+          "Quantas ligações já foram registradas e quantas viraram pedido?"
+        ]
+      },
+      {
+        "id": "d38f9059b8c6c32d068b52117121f3cc",
+        "question": [
+          "O modelo está bom?"
+        ]
+      },
+      {
+        "id": "ee926e6feb854b1cc95ff064897fe43a",
+        "question": [
+          "Quais clientes estão em risco de não comprar mais?"
+        ]
+      }
+    ]
+  },
+  "data_sources": {
+    "tables": [
+      {
+        "column_configs": [
+          {
+            "column_name": "cidade",
+            "description": [
+              "Cidade do cliente."
+            ],
+            "enable_entity_matching": true,
+            "enable_format_assistance": true
+          },
+          {
+            "column_name": "cliente_id",
+            "description": [
+              "Identificador do cliente."
+            ]
+          },
+          {
+            "column_name": "dias_sem_comprar",
+            "description": [
+              "Dias desde o último pedido do cliente."
+            ]
+          },
+          {
+            "column_name": "razao_social",
+            "description": [
+              "Razão social do cliente."
+            ],
+            "enable_entity_matching": true,
+            "enable_format_assistance": true
+          },
+          {
+            "column_name": "receita_media_mensal",
+            "description": [
+              "Receita média mensal do cliente antes de parar de comprar."
+            ]
+          },
+          {
+            "column_name": "segmento",
+            "description": [
+              "Segmento do cliente."
+            ],
+            "enable_entity_matching": true,
+            "enable_format_assistance": true
+          },
+          {
+            "column_name": "uf",
+            "description": [
+              "UF do cliente."
+            ],
+            "enable_entity_matching": true,
+            "enable_format_assistance": true
+          }
+        ],
+        "identifier": "lakehouse_mecamecanica.gold.clientes_em_risco"
+      },
+      {
+        "column_configs": [
+          {
+            "column_name": "cidade",
+            "description": [
+              "Cidade do cliente."
+            ],
+            "enable_entity_matching": true,
+            "enable_format_assistance": true
+          },
+          {
+            "column_name": "cliente_id",
+            "description": [
+              "Identificador do cliente."
+            ]
+          },
+          {
+            "column_name": "faixa",
+            "description": [
+              "Faixa do score em quartis: Fria, Morna, Quente, Muito quente."
+            ],
+            "enable_entity_matching": true,
+            "enable_format_assistance": true
+          },
+          {
+            "column_name": "motivo",
+            "description": [
+              "Frase em português explicando por que o cliente está na fila. Nunca é nula."
+            ]
+          },
+          {
+            "column_name": "ordem",
+            "description": [
+              "Posição do cliente na fila DAQUELE vendedor (1 = primeira ligação da semana), não a posição global."
+            ]
+          },
+          {
+            "column_name": "razao_social",
+            "description": [
+              "Razão social (nome) do cliente."
+            ],
+            "enable_entity_matching": true,
+            "enable_format_assistance": true
+          },
+          {
+            "column_name": "score",
+            "description": [
+              "Probabilidade de compra na semana (0 a 1). Maior = mais prioritário."
+            ]
+          },
+          {
+            "column_name": "sugestao",
+            "description": [
+              "O que oferecer ao cliente: produto sugerido, com saldo em estoque no snapshot mais recente."
+            ]
+          },
+          {
+            "column_name": "ticket_medio",
+            "description": [
+              "Ticket médio histórico do cliente."
+            ]
+          },
+          {
+            "column_name": "uf",
+            "description": [
+              "UF do cliente."
+            ],
+            "enable_entity_matching": true,
+            "enable_format_assistance": true
+          },
+          {
+            "column_name": "vendedor",
+            "description": [
+              "Nome do vendedor responsável por essa ligação, pela carteira vigente dele."
+            ],
+            "enable_entity_matching": true,
+            "enable_format_assistance": true,
+            "synonyms": [
+              "representante",
+              "responsável pela conta"
+            ]
+          }
+        ],
+        "identifier": "lakehouse_mecamecanica.gold.fila_semanal"
+      },
+      {
+        "column_configs": [
+          {
+            "column_name": "_treinado_em",
+            "description": [
+              "Quando este treino do modelo foi executado."
+            ]
+          },
+          {
+            "column_name": "acertos_top200",
+            "description": [
+              "Quantos dos 200 clientes de maior score realmente compraram, medido por validação cruzada."
+            ]
+          },
+          {
+            "column_name": "auc",
+            "description": [
+              "Métrica técnica de treino do modelo. NÃO citar para responder pergunta de negócio — use lift_top200 e acertos_top200."
+            ]
+          },
+          {
+            "column_name": "baseline_atraso",
+            "description": [
+              "AUC da regra simples 'ligar para quem está mais atrasado', medida como referência — não é o modelo."
+            ]
+          },
+          {
+            "column_name": "baseline_recencia",
+            "description": [
+              "AUC da regra simples 'ligar para quem comprou mais recentemente', medida como referência — não é o modelo."
+            ]
+          },
+          {
+            "column_name": "baseline_valor_total",
+            "description": [
+              "AUC da regra simples 'ligar para quem compra mais', medida como referência — não é o modelo."
+            ]
+          },
+          {
+            "column_name": "feature_mais_importante",
+            "description": [
+              "A característica do cliente que mais pesou na decisão do modelo neste treino."
+            ]
+          },
+          {
+            "column_name": "lift_top200",
+            "description": [
+              "Quantas vezes o modelo acerta mais do que ligar às cegas, medido nos 200 primeiros. É A MÉTRICA da direção."
+            ]
+          },
+          {
+            "column_name": "taxa_base",
+            "description": [
+              "Fração de clientes que compram numa semana qualquer, ligando às cegas — a régua de comparação."
+            ]
+          },
+          {
+            "column_name": "versao",
+            "description": [
+              "Versão do modelo no Unity Catalog."
+            ]
+          }
+        ],
+        "identifier": "lakehouse_mecamecanica.gold.modelo_metricas"
+      },
+      {
+        "column_configs": [
+          {
+            "column_name": "marca",
+            "description": [
+              "Marca do produto."
+            ],
+            "enable_entity_matching": true,
+            "enable_format_assistance": true
+          },
+          {
+            "column_name": "margem",
+            "description": [
+              "Margem total da marca, todo o histórico."
+            ]
+          },
+          {
+            "column_name": "margem_pct",
+            "description": [
+              "Margem dividida pela receita da marca (0 a 1)."
+            ]
+          },
+          {
+            "column_name": "participacao_pct",
+            "description": [
+              "Participação da marca na receita total da empresa (0 a 1)."
+            ]
+          },
+          {
+            "column_name": "receita",
+            "description": [
+              "Receita total da marca, todo o histórico."
+            ]
+          }
+        ],
+        "identifier": "lakehouse_mecamecanica.gold.ranking_marcas"
+      },
+      {
+        "column_configs": [
+          {
+            "column_name": "ano",
+            "description": [
+              "Ano do pedido."
+            ]
+          },
+          {
+            "column_name": "margem",
+            "description": [
+              "Soma da margem do mês."
+            ]
+          },
+          {
+            "column_name": "mes",
+            "description": [
+              "Mês do pedido (1 a 12)."
+            ]
+          },
+          {
+            "column_name": "mes_pico_setor",
+            "description": [
+              "true se este mês é pico sazonal do setor. A sazonalidade é INVERTIDA: o pico é o mês ANTERIOR à data comemorativa, não o mês dela."
+            ]
+          },
+          {
+            "column_name": "nome_mes",
+            "description": [
+              "Nome do mês."
+            ]
+          },
+          {
+            "column_name": "pedidos",
+            "description": [
+              "Pedidos distintos no mês."
+            ]
+          },
+          {
+            "column_name": "receita",
+            "description": [
+              "Soma da receita líquida do mês."
+            ]
+          }
+        ],
+        "identifier": "lakehouse_mecamecanica.gold.receita_mensal"
+      },
+      {
+        "column_configs": [
+          {
+            "column_name": "_referencia",
+            "description": [
+              "Semana da fila a que este retorno se refere."
+            ]
+          },
+          {
+            "column_name": "cliente_id",
+            "description": [
+              "Cliente que recebeu a ligação."
+            ]
+          },
+          {
+            "column_name": "comentario",
+            "description": [
+              "Texto livre do vendedor sobre a ligação."
+            ]
+          },
+          {
+            "column_name": "registrado_em",
+            "description": [
+              "Quando o retorno foi registrado."
+            ]
+          },
+          {
+            "column_name": "registrado_por",
+            "description": [
+              "E-mail de quem registrou o retorno."
+            ]
+          },
+          {
+            "column_name": "status",
+            "description": [
+              "Resultado da ligação: vendeu, vai_pensar, sem_interesse ou nao_atendeu. Esta tabela começa VAZIA — zero linhas é o estado inicial correto, não erro."
+            ],
+            "enable_entity_matching": true,
+            "enable_format_assistance": true
+          },
+          {
+            "column_name": "vendedor",
+            "description": [
+              "Vendedor que fez a ligação."
+            ],
+            "enable_entity_matching": true,
+            "enable_format_assistance": true
+          }
+        ],
+        "identifier": "lakehouse_mecamecanica.gold.retorno_ligacao"
+      },
+      {
+        "column_configs": [
+          {
+            "column_name": "_referencia",
+            "description": [
+              "Data de corte usada para calcular o score — o \"hoje\" considerado pelo modelo."
+            ]
+          },
+          {
+            "column_name": "cliente_id",
+            "description": [
+              "Identificador do cliente."
+            ]
+          },
+          {
+            "column_name": "faixa",
+            "description": [
+              "Faixa do score em quartis: Fria, Morna, Quente, Muito quente."
+            ],
+            "enable_entity_matching": true,
+            "enable_format_assistance": true
+          },
+          {
+            "column_name": "score",
+            "description": [
+              "Probabilidade de compra na semana seguinte (0 a 1), de todos os clientes — não só os 200 da fila."
+            ]
+          },
+          {
+            "column_name": "versao",
+            "description": [
+              "Versão do modelo (Unity Catalog) que gerou esse score."
+            ]
+          }
+        ],
+        "identifier": "lakehouse_mecamecanica.gold.score_propensao"
+      }
+    ]
+  },
+  "instructions": {
+    "example_question_sqls": [
+      {
+        "id": "13a64ed1f60cad8aa82e107740acc44d",
+        "question": [
+          "Quem eu ligo essa semana?"
+        ],
+        "sql": [
+          "SELECT vendedor, ordem, razao_social, cidade, score, faixa, motivo, sugestao FROM lakehouse_mecamecanica.gold.fila_semanal ORDER BY score DESC LIMIT 20"
+        ]
+      },
+      {
+        "id": "1ab27d97fb670183495382426aeda401",
+        "question": [
+          "Quanto vale a fila desta semana?"
+        ],
+        "sql": [
+          "SELECT ROUND(SUM(score * ticket_medio), 2) AS receita_esperada FROM lakehouse_mecamecanica.gold.fila_semanal"
+        ]
+      },
+      {
+        "id": "69721d1b4f5124d1b8ecddbdfd1b9349",
+        "question": [
+          "Quantas ligações já foram registradas e quantas viraram pedido?"
+        ],
+        "sql": [
+          "SELECT COUNT(*) AS registradas, SUM(CASE WHEN status = 'vendeu' THEN 1 ELSE 0 END) AS viraram_pedido FROM lakehouse_mecamecanica.gold.retorno_ligacao"
+        ]
+      },
+      {
+        "id": "833d9f9f5a3c5972ef5a81380512ad04",
+        "question": [
+          "O modelo está bom?"
+        ],
+        "sql": [
+          "SELECT lift_top200, acertos_top200, taxa_base FROM lakehouse_mecamecanica.gold.modelo_metricas ORDER BY _treinado_em DESC LIMIT 1"
+        ]
+      },
+      {
+        "id": "f6a881299038aebd780431b512104feb",
+        "question": [
+          "Quais clientes estão em risco de não comprar mais?"
+        ],
+        "sql": [
+          "SELECT razao_social, cidade, dias_sem_comprar, receita_media_mensal FROM lakehouse_mecamecanica.gold.clientes_em_risco ORDER BY receita_media_mensal DESC LIMIT 20"
+        ]
+      }
+    ],
+    "text_instructions": [
+      {
+        "content": [
+          "## PURPOSE- Espaço para a direção comercial: quem não escreve SQL e decide sobre ligações de vendas e prioridades comerciais, não sobre como o modelo foi treinado.## DISAMBIGUATION- score é a probabilidade (0 a 1) do cliente comprar nos próximos 7 dias; faixa é o quartil do score (Fria, Morna, Quente, Muito quente); ordem é a posição do cliente na fila DAQUELE vendedor, não a posição global; motivo é a frase que explica por que o cliente está na fila.- A fila (gold.fila_semanal) é GLOBAL — os 200 de maior score no geral, não uma cota igual por vendedor: quem tem carteira mais quente recebe mais contatos, e isso está correto por desenho.- Receita esperada da fila = SUM(score * ticket_medio) em gold.fila_semanal. É uma ESTIMATIVA, nunca chame de receita realizada ou confirmada.- Um cliente pode ter mais de um registro em gold.retorno_ligacao; para saber o estado atual dele, use sempre o mais recente por registrado_em.- A sazonalidade do setor de autopeças é INVERTIDA (gold.receita_mensal.mes_pico_setor): o pico de vendas é o mês ANTERIOR à data comemorativa, não o mês dela.## DATA QUALITY NOTES- gold.retorno_ligacao começa vazia. Se a pergunta for sobre retornos e a contagem vier zero, diga que ninguém registrou retorno ainda — nunca invente um número, e nunca use gold.fila_semanal como se fosse retorno já registrado.## CONSTRAINTS- A métrica de qualidade do modelo para a direção é lift_top200 (e acertos_top200), de gold.modelo_metricas. NUNCA cite AUC para responder pergunta de negócio — AUC é métrica de quem treina o modelo, não de quem decide ligação.- Nunca use tabelas do schema bronze."
+        ],
+        "id": "058261b3f53f498fd608b7f25afb01ed"
+      }
+    ]
+  },
+  "version": 2
+}

@@ -1,0 +1,173 @@
+{
+  "config": {
+    "sample_questions": [
+      {
+        "id": "4a3f75f2dd2df557b4f1f6debce4af45",
+        "question": [
+          "Quem eu ligo essa semana?"
+        ]
+      },
+      {
+        "id": "88230526ee05d7b3f2e794e0363c9760",
+        "question": [
+          "Por que esse cliente está no topo da minha lista?"
+        ]
+      }
+    ]
+  },
+  "data_sources": {
+    "tables": [
+      {
+        "column_configs": [
+          {
+            "column_name": "cidade",
+            "description": [
+              "Cidade do cliente."
+            ],
+            "enable_entity_matching": true,
+            "enable_format_assistance": true
+          },
+          {
+            "column_name": "cliente_id",
+            "description": [
+              "Identificador do cliente. Use as funções contexto_cliente e sugerir_produtos para detalhar um cliente específico."
+            ]
+          },
+          {
+            "column_name": "faixa",
+            "description": [
+              "Faixa do score em quartis: Fria, Morna, Quente, Muito quente."
+            ],
+            "enable_entity_matching": true,
+            "enable_format_assistance": true
+          },
+          {
+            "column_name": "motivo",
+            "description": [
+              "Frase em português explicando por que o cliente está na fila. Nunca é nula."
+            ]
+          },
+          {
+            "column_name": "ordem",
+            "description": [
+              "Posição do cliente na fila DAQUELE vendedor (1 = primeira ligação da semana), não a posição global."
+            ]
+          },
+          {
+            "column_name": "razao_social",
+            "description": [
+              "Razão social (nome) do cliente."
+            ],
+            "enable_entity_matching": true,
+            "enable_format_assistance": true
+          },
+          {
+            "column_name": "score",
+            "description": [
+              "Probabilidade de compra na semana (0 a 1). Maior = mais prioritário."
+            ]
+          },
+          {
+            "column_name": "sugestao",
+            "description": [
+              "O que oferecer ao cliente: produto sugerido, com saldo em estoque no snapshot mais recente."
+            ]
+          },
+          {
+            "column_name": "ticket_medio",
+            "description": [
+              "Ticket médio histórico do cliente."
+            ]
+          },
+          {
+            "column_name": "uf",
+            "description": [
+              "UF do cliente."
+            ],
+            "enable_entity_matching": true,
+            "enable_format_assistance": true
+          },
+          {
+            "column_name": "vendedor",
+            "description": [
+              "Nome do vendedor responsável por essa ligação, pela carteira vigente dele."
+            ],
+            "enable_entity_matching": true,
+            "enable_format_assistance": true,
+            "synonyms": [
+              "representante",
+              "responsável pela conta"
+            ]
+          }
+        ],
+        "identifier": "lakehouse_mecamecanica.gold.fila_semanal"
+      },
+      {
+        "column_configs": [
+          {
+            "column_name": "_referencia",
+            "description": [
+              "Data de corte usada para calcular o score — o \"hoje\" considerado pelo modelo."
+            ]
+          },
+          {
+            "column_name": "cliente_id",
+            "description": [
+              "Identificador do cliente."
+            ]
+          },
+          {
+            "column_name": "faixa",
+            "description": [
+              "Faixa do score em quartis: Fria, Morna, Quente, Muito quente."
+            ],
+            "enable_entity_matching": true,
+            "enable_format_assistance": true
+          },
+          {
+            "column_name": "score",
+            "description": [
+              "Probabilidade de compra na semana seguinte (0 a 1), de todos os clientes — não só os 200 da fila."
+            ]
+          },
+          {
+            "column_name": "versao",
+            "description": [
+              "Versão do modelo (Unity Catalog) que gerou esse score."
+            ]
+          }
+        ],
+        "identifier": "lakehouse_mecamecanica.gold.score_propensao"
+      }
+    ]
+  },
+  "instructions": {
+    "sql_functions": [
+      {
+        "id": "1598d6c1c0b0d23c776048a30f9d0649",
+        "identifier": "lakehouse_mecamecanica.gold.checar_disponibilidade"
+      },
+      {
+        "id": "9d2f1e9a8c73947cb239e67ebf0624d1",
+        "identifier": "lakehouse_mecamecanica.gold.contexto_cliente"
+      },
+      {
+        "id": "9e623dec7630aa2215c2898f31f5cdbf",
+        "identifier": "lakehouse_mecamecanica.gold.priorizar_carteira"
+      },
+      {
+        "id": "c123ce1ac401f2eacc3a251d2e58ab1d",
+        "identifier": "lakehouse_mecamecanica.gold.sugerir_produtos"
+      }
+    ],
+    "text_instructions": [
+      {
+        "content": [
+          "Use sempre as tabelas e funções deste espaço. Nunca invente número, nome de cliente ou quantidade de estoque."
+        ],
+        "id": "200d192cf2fa54de2829c48a1c078f6e"
+      }
+    ]
+  },
+  "version": 2
+}

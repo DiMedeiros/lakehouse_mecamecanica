@@ -1,0 +1,8 @@
+resources:
+  genie_spaces:
+    genie_direcao:
+      title: "Direção — mecamecanica"
+      warehouse_id: 1f125ef309cf6f09
+      file_path: ../src/genie_direcao.geniespace.json
+      description: 'Genie para a direção comercial: quanto vale a fila da semana, se o modelo está bom (lift_top200, nunca AUC), quantas ligações já viraram pedido e quais clientes estão em risco. Não é o mesmo espaço do vendedor (genie_fila_semanal) — é um Genie por audiência, não por empresa.'
+      parent_path: /Workspace/Users/diego.smedeiros@live.com/.bundle/mecamecanica/dev/files
