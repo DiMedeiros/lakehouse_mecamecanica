@@ -7,12 +7,15 @@
 #                               9 testes de qualidade que derrubam o job se falharem
 #   5. dashboard comercial      (feito) — resources/dashboard.dashboard.yml, não é tarefa deste job
 #   6. gold_metricas_negocio, gold_retorno_ligacao
-#                               (feito) — 3 views de negócio (clientes_em_risco, ranking_marcas,
-#                               receita_mensal) e a tabela de callback preenchida pelo app
+#                               (feito) — 6 views de negócio (clientes_em_risco, ranking_marcas,
+#                               receita_mensal, margem_por_categoria, efeito_lancamento,
+#                               ruptura_por_marca) e a tabela de callback preenchida pelo app
 #   7. ml_features, ml_modelo, ml_fila
 #                               (feito) — camada de ML: features de propensão, treino/registro do
 #                               modelo (HistGradientBoostingClassifier, MLflow/UC) e a fila semanal
 #                               de 200 contatos com as 4 funções de apoio ao agente
+#   8. auditoria_de_metadado   (feito) — quebra o job se faltar COMMENT em tabela/view/coluna
+#                               da gold; é o que faz o Genie comercial confiável
 resources:
   jobs:
     mecamecanica_pipeline:
@@ -134,6 +137,14 @@ resources:
             warehouse_id: ${var.warehouse_id}
             file:
               path: ../src/ml/11-fila.sql
+              source: WORKSPACE
+        - task_key: auditoria_de_metadado
+          depends_on:
+            - task_key: gold_metricas_negocio
+          sql_task:
+            warehouse_id: ${var.warehouse_id}
+            file:
+              path: ../src/gold/11-auditoria-metadado.sql
               source: WORKSPACE
       schedule:
         quartz_cron_expression: "0 0 6 * * ?"

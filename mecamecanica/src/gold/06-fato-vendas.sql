@@ -99,3 +99,5 @@ COMMENT ON COLUMN lakehouse_mecamecanica.gold.fato_vendas.margem IS
   'Receita menos custo do produto. Não considera desconto comercial nem frete.';
 COMMENT ON COLUMN lakehouse_mecamecanica.gold.fato_vendas.devolucao IS
   'true quando o item é uma devolução (quantidade de origem negativa). Devolução fica dentro do fato de propósito — excluí-la infla a receita em ~R$ 1,26 milhão.';
+COMMENT ON COLUMN lakehouse_mecamecanica.gold.fato_vendas._processado_em IS
+  'Timestamp de quando esta linha foi gravada pelo pipeline. Metadado técnico, não de negócio.';

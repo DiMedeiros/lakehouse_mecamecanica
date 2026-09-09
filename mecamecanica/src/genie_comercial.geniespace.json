@@ -1,0 +1,340 @@
+{
+  "version": 2,
+  "data_sources": {
+    "tables": [
+      {
+        "identifier": "lakehouse_mecamecanica.gold.clientes_em_risco",
+        "column_configs": [
+          {
+            "column_name": "cidade",
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "razao_social",
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "segmento",
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          }
+        ]
+      },
+      {
+        "identifier": "lakehouse_mecamecanica.gold.dim_cliente",
+        "column_configs": [
+          {
+            "column_name": "cidade",
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "cnpj",
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "razao_social",
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "segmento",
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "uf",
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          }
+        ]
+      },
+      {
+        "identifier": "lakehouse_mecamecanica.gold.dim_produto",
+        "column_configs": [
+          {
+            "column_name": "aplicacao",
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "categoria",
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "descricao",
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "marca",
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "sku",
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          }
+        ]
+      },
+      {
+        "identifier": "lakehouse_mecamecanica.gold.dim_vendedor",
+        "column_configs": [
+          {
+            "column_name": "nome",
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "regiao",
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "uf",
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          }
+        ]
+      },
+      {
+        "identifier": "lakehouse_mecamecanica.gold.efeito_lancamento",
+        "column_configs": [
+          {
+            "column_name": "descricao",
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "marca",
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "sku",
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          }
+        ]
+      },
+      {
+        "identifier": "lakehouse_mecamecanica.gold.fato_vendas",
+        "column_configs": [
+          {
+            "column_name": "canal",
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "categoria",
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "cidade",
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "marca",
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "razao_social",
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "segmento",
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "sku",
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "uf",
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          }
+        ]
+      },
+      {
+        "identifier": "lakehouse_mecamecanica.gold.fila_semanal",
+        "column_configs": [
+          {
+            "column_name": "cidade",
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "faixa",
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "razao_social",
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "vendedor",
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          }
+        ]
+      },
+      {
+        "identifier": "lakehouse_mecamecanica.gold.margem_por_categoria",
+        "column_configs": [
+          {
+            "column_name": "categoria",
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          }
+        ]
+      },
+      {
+        "identifier": "lakehouse_mecamecanica.gold.ranking_marcas",
+        "column_configs": [
+          {
+            "column_name": "marca",
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          }
+        ]
+      },
+      {
+        "identifier": "lakehouse_mecamecanica.gold.receita_mensal"
+      },
+      {
+        "identifier": "lakehouse_mecamecanica.gold.ruptura_por_marca",
+        "column_configs": [
+          {
+            "column_name": "marca",
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          }
+        ]
+      },
+      {
+        "identifier": "lakehouse_mecamecanica.gold.score_propensao",
+        "column_configs": [
+          {
+            "column_name": "faixa",
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          }
+        ]
+      }
+    ]
+  },
+  "config": {
+    "sample_questions": [
+      {
+        "question": [
+          "Quais clientes pararam de comprar, e quanta receita a gente perdeu com isso?"
+        ],
+        "id": "1d1ac528c83cefe3aa3d56ba7cb29dae"
+      },
+      {
+        "question": [
+          "Quanto da receita vem dos produtos recém-lançados?"
+        ],
+        "id": "1fda44f02b40ad6f223468ca7131417d"
+      },
+      {
+        "question": [
+          "Qual categoria vende muito e ganha pouco?"
+        ],
+        "id": "5827d6b8f285ed45c00c6b89b89c0615"
+      },
+      {
+        "question": [
+          "Dezembro foi um mês ruim?"
+        ],
+        "id": "c608291d8d8e522ad4296729ef473945"
+      },
+      {
+        "question": [
+          "Quais marcas mais venderam nos últimos 6 meses?"
+        ],
+        "id": "e7efb0ebdabb9ac45d7c9a8553462f85"
+      }
+    ]
+  },
+  "instructions": {
+    "text_instructions": [
+      {
+        "content": [
+          "# mecamecanica — distribuidora de autopeças\n\nDistribui peças automotivas para oficinas mecânicas, autopeças independentes,\nconcessionárias, redes de autopeças, e-commerce de peças, retíficas de motor,\nauto centers e funilarias/pintura. Período da base: setembro/2024 a\nagosto/2026. Receita total: R$ 102.303.828,05.\n\n## A regra mais importante: a sazonalidade é INVERTIDA\n\nA troca de itens sazonais e preventivos concentra ANTES do período de uso\nintenso, então o pico da distribuidora é o MÊS ANTERIOR:\n* abril   — revisão antes do inverno/período seco\n* junho   — férias de meio de ano, viagens de estrada\n* outubro — revisão antes do verão e das viagens de fim de ano\n\nDezembro e janeiro são VALE, e isso é SAUDÁVEL: as oficinas já estão\nabastecidas. NUNCA descreva dezembro ou janeiro como mês ruim, queda de\ndesempenho ou problema. É o comportamento esperado do setor. Outubro/2025 fez\nR$ 7,0 mi e janeiro/2026 fez R$ 2,5 mi — os dois são normais.\n\n## Glossário\n\n* RUPTURA — o SKU está com saldo zero no estoque. Peça em falta atrasa o\n  atendimento da oficina e pode empurrar a venda para outro fornecedor.\n* CARTEIRA — o vínculo entre um cliente e o vendedor que o atende, com\n  vigência (pode estar encerrada ou órfã de vendedor desligado).\n* OPORTUNIDADE — negócio em aberto no funil. As etapas são Prospecção,\n  Qualificação, Proposta enviada, Negociação, Fechado ganho e Fechado\n  perdido.\n* DEVOLUÇÃO — item devolvido. Entra no fato com quantidade e receita\n  NEGATIVAS e com a flag devolucao = true.\n* SKU — código único de produto (peça).\n* SEGMENTO — o tipo de negócio do cliente (ex.: Oficina mecânica, Auto\n  center, Concessionária), não a categoria da peça.\n* APLICAÇÃO — a linha de veículo à qual a peça se destina (ex.: Linha GM,\n  Linha VW) ou Universal.\n* CURVA ABC — A são os SKUs que somam os primeiros 80% da receita, B até\n  95%, C é a cauda.\n* CHURN / CLIENTE EM RISCO — mais de 90 dias sem nenhum pedido.\n\n## Como calcular\n\n* RECEITA = SUM(receita) em gold.fato_vendas. Já vem com a devolução\n  descontada, porque a devolução está no fato com valor negativo.\n* BRUTO VENDIDO = SUM(receita) FILTER (WHERE NOT devolucao). Use só quando\n  perguntarem explicitamente pelo bruto, sem devolução.\n* MARGEM = receita menos o custo do produto. NÃO considera frete, desconto\n  comercial já embutido no preço, nem taxa de meio de pagamento.\n* TICKET MÉDIO = receita dividida por COUNT(DISTINCT pedido_id).\n* ATINGIMENTO DE META = receita do vendedor no mês dividida por meta_mensal.\n* Pedido CANCELADO já está fora do fato. Não filtre status de novo.\n\n## Onde procurar\n\nPrefira sempre as views de negócio, que já estão no grão certo:\n* receita_mensal        — receita, margem e sazonalidade por mês\n* ranking_marcas        — quais marcas mais venderam e quanto representam\n* margem_por_categoria  — onde a empresa ganha e onde perde margem\n* clientes_em_risco     — quem parou de comprar e quanto se perde por mês\n* efeito_lancamento     — quanto o lançamento de um SKU puxa a receita\n* ruptura_por_marca     — quais marcas mais faltam no estoque\n\nUse gold.fato_vendas quando a pergunta cruzar dimensões que as views não\ntêm. NUNCA use as tabelas do schema bronze: elas são texto puro e sujas de\npropósito.\n\n# A fila da semana\n\ngold.fila_semanal tem os 200 clientes que o time deve contatar nesta semana,\npriorizados por valor esperado (score de propensão x margem x ticket médio)\n— não só por probabilidade — e já divididos pela carteira de cada vendedor.\n`ordem` é a sequência de ligação, `motivo` explica em português por que o\ncliente está na lista, e `sugestao` é o que oferecer, sempre com estoque\ndisponível.\n\ngold.score_propensao tem a nota de TODOS os clientes, não só dos 200.\n\n## Regra do sistema\n\nUse SEMPRE as tabelas e views deste espaço. NUNCA invente número, nome de\ncliente ou quantidade de estoque. Se a resposta não estiver nos dados, diga\nque não está.\n"
+        ],
+        "id": "b6afaf58ccb2266beb1501ced42a6231"
+      }
+    ],
+    "example_question_sqls": [
+      {
+        "question": [
+          "Quais marcas mais venderam?"
+        ],
+        "sql": [
+          "SELECT marca, receita, margem_pct, participacao_pct\nFROM lakehouse_mecamecanica.gold.ranking_marcas\nORDER BY receita DESC\n"
+        ],
+        "id": "0b9f00981f78eef4b49197df31cc8e71"
+      },
+      {
+        "question": [
+          "Quanto da receita vem de produto recém-lançado?"
+        ],
+        "sql": [
+          "SELECT ROUND(SUM(receita_120_dias), 2) AS receita_na_janela,\n       ROUND(SUM(receita_total), 2)    AS receita_dos_lancados,\n       ROUND(SUM(receita_120_dias) / SUM(receita_total), 4) AS peso\nFROM lakehouse_mecamecanica.gold.efeito_lancamento\n"
+        ],
+        "id": "0dafb62d341b87baa84973a93f1a11d4"
+      },
+      {
+        "question": [
+          "Dezembro foi um mês ruim?"
+        ],
+        "sql": [
+          "-- Dezembro e janeiro são VALE do setor, não queda de desempenho.\nSELECT ano, mes, mes_pico_setor, mes_vale_setor, receita, pedidos\nFROM lakehouse_mecamecanica.gold.receita_mensal\nORDER BY ano, mes\n"
+        ],
+        "id": "987a5037d8cf4e7f17e5ca3ea038a483"
+      },
+      {
+        "question": [
+          "Qual categoria vende muito e ganha pouco?"
+        ],
+        "sql": [
+          "SELECT categoria, receita, margem_pct\nFROM lakehouse_mecamecanica.gold.margem_por_categoria\nORDER BY margem_pct ASC\n"
+        ],
+        "id": "c08e9318725f99efba50f1ef97124f6d"
+      },
+      {
+        "question": [
+          "Quais clientes pararam de comprar e quanta receita perdemos por mês?"
+        ],
+        "sql": [
+          "SELECT razao_social, segmento, cidade, dias_sem_comprar,\n       receita_media_mensal\nFROM lakehouse_mecamecanica.gold.clientes_em_risco\nORDER BY receita_media_mensal DESC\nLIMIT 50\n"
+        ],
+        "id": "d2eb48c28d1b231412c50257c9a6494c"
+      },
+      {
+        "question": [
+          "Quais marcas mais faltam no estoque?"
+        ],
+        "sql": [
+          "SELECT marca, ruptura_pct, snapshots_em_ruptura, saldo_medio\nFROM lakehouse_mecamecanica.gold.ruptura_por_marca\nORDER BY ruptura_pct DESC\n"
+        ],
+        "id": "e411fb637dffefd52230dab89c662335"
+      }
+    ]
+  }
+}
