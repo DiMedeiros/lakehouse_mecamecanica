@@ -15,6 +15,7 @@ SELECT   f.vendedor,
          f.score,
          f.faixa,
          f.ticket_medio,
+         f.valor_esperado,
          f.motivo,
          f.sugestao,
          r.status      AS retorno_status,
@@ -22,4 +23,6 @@ SELECT   f.vendedor,
 FROM     lakehouse_mecamecanica.gold.fila_semanal f
 LEFT JOIN ultimo_retorno r ON r.cliente_id = f.cliente_id
 WHERE    :vendedor = 'Todos' OR f.vendedor = :vendedor
-ORDER BY f.score DESC
+-- a fila é priorizada por valor_esperado (score x margem x ticket), não só
+-- por score — a ordem de exibição precisa bater com a de gold.fila_semanal.
+ORDER BY f.valor_esperado DESC

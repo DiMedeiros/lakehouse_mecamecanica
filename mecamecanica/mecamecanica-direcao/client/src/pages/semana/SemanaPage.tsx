@@ -209,13 +209,14 @@ function Conteudo({
             <div className="overflow-x-auto">
               {/* table-fixed + largura por coluna: sem isso o texto de motivo e
                   sugestão transborda e uma célula escreve por cima da outra. */}
-              <Table className="table-fixed w-full min-w-[64rem]">
+              <Table className="table-fixed w-full min-w-[71rem]">
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-[3rem]">#</TableHead>
                     <TableHead className="w-[15rem]">Cliente</TableHead>
                     <TableHead className="w-[9rem]">Vendedor</TableHead>
                     <TableHead className="w-[5rem] text-right">Chance</TableHead>
+                    <TableHead className="w-[7rem] text-right">Valor esperado</TableHead>
                     <TableHead className="w-[16rem]">Por que ligar</TableHead>
                     <TableHead className="w-[14rem]">O que oferecer</TableHead>
                     <TableHead className="w-[13rem]">Como foi a ligação</TableHead>
@@ -243,6 +244,7 @@ function Conteudo({
                           {linha.vendedor}
                         </TableCell>
                         <TableCell className="text-right font-medium">{pct(linha.score)}</TableCell>
+                        <TableCell className="text-right">{reais(linha.valor_esperado)}</TableCell>
                         <TableCell className="text-sm whitespace-normal break-words">
                           {linha.motivo}
                         </TableCell>

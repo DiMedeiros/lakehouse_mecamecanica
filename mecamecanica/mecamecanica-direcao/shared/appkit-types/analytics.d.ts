@@ -34,7 +34,7 @@ declare module "@databricks/appkit-ui/react" {
         result: Array<{
           /** Nome do vendedor responsável, via carteira vigente (silver.carteira -> silver.vendedores). */
           vendedor: string;
-          /** Posição do cliente na fila DAQUELE vendedor (1 = primeira ligação), não a posição global. */
+          /** Posição do cliente na fila DAQUELE vendedor (1 = primeira ligação), não a posição global. Ordenada por valor_esperado, não por score. */
           ordem: number;
           /** Identificador do cliente, mesmo cliente_id de gold.score_propensao e gold.dim_cliente. */
           cliente_id: string;
@@ -44,15 +44,17 @@ declare module "@databricks/appkit-ui/react" {
           cidade: string;
           /** UF do cliente, de gold.dim_cliente. */
           uf: string;
-          /** Probabilidade de compra na semana, de gold.score_propensao (0 a 1). Maior = mais prioritário. */
+          /** Probabilidade de compra na semana, de gold.score_propensao (0 a 1). Informativo — quem ordena a fila é valor_esperado, não este campo sozinho. */
           score: number;
           /** Faixa do score em quartis: Fria, Morna, Quente, Muito quente (gold.score_propensao). */
           faixa: string;
           /** Ticket médio histórico do cliente, de gold.features_cliente. */
           ticket_medio: number;
+          /** score x margem_percentual x ticket_medio: quanto de margem essa ligação vale em expectativa. É o critério de ordenação da fila (top 200 e ordem por vendedor) — duas ligações igualmente prováveis não valem o mesmo se uma tem o dobro de margem. */
+          valor_esperado: number;
           /** Frase em português explicando por que o cliente está na fila, com os números reais dele. Nunca nula — sempre tem um ELSE. */
           motivo: string;
-          /** O que oferecer: o SKU mais comprado pelo cliente, na marca preferida dele, que ele não levou nos últimos 90 dias, com o saldo do snapshot mais recente de silver.estoque. */
+          /** O que oferecer: o SKU mais comprado pelo cliente que tenha estoque (nunca em ruptura), na marca preferida dele, que ele não levou nos últimos 90 dias. Se todo o histórico do cliente estiver em ruptura, cai para um produto com estoque na marca que ele mais compra, sinalizando que é uma alternativa. */
           sugestao: string;
           /** Resultado da ligação: vendeu, vai_pensar, sem_interesse ou nao_atendeu. */
           retorno_status: string;
