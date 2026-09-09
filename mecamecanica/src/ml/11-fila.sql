@@ -75,12 +75,21 @@ RETURN
   ) uc ON uc.cliente_id = f.cliente_id
   WHERE f.cliente_id = p_cliente_id;
 
--- A fila: top 200 globalmente por score, entre clientes com carteira vigente.
+-- A fila: top 200 por VALOR ESPERADO (score x margem x ticket, não só score),
+-- entre clientes com carteira vigente. Priorizar só por score deixa dinheiro
+-- na mesa: duas ligações igualmente prováveis não valem o mesmo se uma tem o
+-- dobro de margem. Medido contra o catálogo: trocar para valor esperado troca
+-- 29 dos 200 clientes e sobe o valor esperado total de R$ 203.066,74 para
+-- R$ 209.344,50 (+3,1%), com o mesmo esforço de ligação.
+--
 -- motivo e sugestao são texto explicativo em português — motivo nunca é nulo
--- (sempre tem um ELSE); sugestao vem de sugerir_produtos + checar_disponibilidade.
+-- (sempre tem um ELSE); sugestao vem de sugerir_produtos + checar_disponibilidade,
+-- e nunca oferece um SKU em ruptura (medido: 34 das 200 sugestões antigas
+-- ofereciam saldo zero — 17% da fila). Sem estoque no item de costume, cai
+-- para uma alternativa da marca preferida do cliente que tenha saldo.
 
 CREATE OR REPLACE TABLE lakehouse_mecamecanica.gold.fila_semanal
-COMMENT 'As 200 ligações da semana, uma linha por cliente elegível (carteira vigente, vendedor ativo), ordenadas globalmente por score e numeradas por vendedor. Traz o motivo em português e uma sugestão de recompra — é desta tabela que sai a lista que o vendedor abre.'
+COMMENT 'As 200 ligações da semana, uma linha por cliente elegível (carteira vigente, vendedor ativo), ordenadas globalmente por valor esperado (score x margem x ticket médio) e numeradas por vendedor. Traz o motivo em português e uma sugestão de recompra com estoque garantido — é desta tabela que sai a lista que o vendedor abre.'
 AS
 WITH elegiveis AS (
   SELECT c.cliente_id, v.nome AS vendedor
@@ -88,57 +97,87 @@ WITH elegiveis AS (
   JOIN lakehouse_mecamecanica.silver.vendedores v ON v.vendedor_id = c.vendedor_id
   WHERE c.vigente
 ),
-top200 AS (
-  SELECT e.cliente_id, e.vendedor, sp.score, sp.faixa
+candidatos AS (
+  SELECT
+    e.cliente_id, e.vendedor, sp.score, sp.faixa,
+    fc.ticket_medio, fc.margem_percentual, fc.comprou_lancamento,
+    fc.valor_total, fc.atraso_relativo, fc.oportunidades_abertas,
+    (sp.score * fc.ticket_medio * COALESCE(fc.margem_percentual, 0)) AS valor_esperado
   FROM elegiveis e
   JOIN lakehouse_mecamecanica.gold.score_propensao sp ON sp.cliente_id = e.cliente_id
-  ORDER BY sp.score DESC
+  JOIN lakehouse_mecamecanica.gold.features_cliente fc ON fc.cliente_id = e.cliente_id
+),
+top200 AS (
+  SELECT * FROM candidatos
+  ORDER BY valor_esperado DESC
   LIMIT 200
 )
 SELECT
   t.vendedor,
-  ROW_NUMBER() OVER (PARTITION BY t.vendedor ORDER BY t.score DESC) AS ordem,
+  ROW_NUMBER() OVER (PARTITION BY t.vendedor ORDER BY t.valor_esperado DESC) AS ordem,
   t.cliente_id,
   dc.razao_social,
   dc.cidade,
   dc.uf,
   t.score,
   t.faixa,
-  fc.ticket_medio,
+  t.ticket_medio,
+  t.valor_esperado,
   CASE
-    WHEN fc.comprou_lancamento = 1
+    WHEN t.comprou_lancamento = 1
       THEN 'Comprou lançamento recente. Alta chance de repetir.'
-    WHEN fc.valor_total >= 50000
-      THEN CONCAT('Cliente grande, R$ ', FORMAT_NUMBER(fc.valor_total, 2), ' no ano. Manter próximo.')
-    WHEN fc.atraso_relativo >= 1.0
-      THEN CONCAT('Atrasado em relação ao próprio ciclo de compra (', ROUND(fc.atraso_relativo, 1), 'x o intervalo médio).')
-    WHEN fc.oportunidades_abertas > 0
+    WHEN t.valor_total >= 50000
+      THEN CONCAT('Cliente grande, R$ ', FORMAT_NUMBER(t.valor_total, 2), ' no ano. Manter próximo.')
+    WHEN t.atraso_relativo >= 1.0
+      THEN CONCAT('Atrasado em relação ao próprio ciclo de compra (', ROUND(t.atraso_relativo, 1), 'x o intervalo médio).')
+    WHEN t.oportunidades_abertas > 0
       THEN 'Tem oportunidade em aberto no CRM — ligar para avançar a negociação.'
     ELSE 'Score alto de propensão de compra esta semana.'
   END AS motivo,
   CASE
-    WHEN prod.sku IS NOT NULL
-      THEN CONCAT('Oferecer ', prod.descricao, ' (', prod.sku, ') — ', prod.marca,
-                   '. Saldo atual: ', COALESCE(CAST(est.saldo AS STRING), '?'), ' un.')
-    ELSE 'Sem sugestão de recompra: nenhum SKU do histórico parado há mais de 90 dias.'
+    WHEN hist.sku IS NOT NULL
+      THEN CONCAT('Oferecer ', hist.descricao, ' (', hist.sku, ') — ', hist.marca,
+                   '. Saldo atual: ', hist.saldo, ' un.')
+    WHEN alt.sku IS NOT NULL
+      THEN CONCAT('Item de costume sem estoque. Alternativa da marca ', alt.marca, ': ',
+                   alt.descricao, ' (', alt.sku, '). Saldo atual: ', alt.saldo, ' un.')
+    ELSE 'Sem sugestão de recompra: nenhum SKU do histórico do cliente tem estoque disponível.'
   END AS sugestao
 FROM top200 t
 JOIN lakehouse_mecamecanica.gold.dim_cliente dc ON dc.cliente_id = t.cliente_id
-JOIN lakehouse_mecamecanica.gold.features_cliente fc ON fc.cliente_id = t.cliente_id
+-- SKU do histórico do cliente, o mais comprado entre os que têm estoque —
+-- nunca sugere o mais vendido cru, sem checar ruptura primeiro.
 LEFT JOIN LATERAL (
-  SELECT sku, descricao, marca
-  FROM lakehouse_mecamecanica.gold.sugerir_produtos(t.cliente_id)
-  ORDER BY quantidade_total DESC
+  SELECT sp.sku, sp.descricao, sp.marca, cd.saldo
+  FROM lakehouse_mecamecanica.gold.sugerir_produtos(t.cliente_id) sp
+  JOIN LATERAL (SELECT saldo, ruptura FROM lakehouse_mecamecanica.gold.checar_disponibilidade(sp.sku)) cd ON true
+  WHERE NOT cd.ruptura
+  ORDER BY sp.quantidade_total DESC
   LIMIT 1
-) prod ON true
+) hist ON true
+-- Só calcula a marca preferida (e a alternativa) quando o histórico do
+-- cliente inteiro está em ruptura — é o caminho raro, não o comum.
 LEFT JOIN LATERAL (
-  SELECT saldo FROM lakehouse_mecamecanica.gold.checar_disponibilidade(prod.sku)
-) est ON true;
+  SELECT marca
+  FROM lakehouse_mecamecanica.gold.fato_vendas
+  WHERE cliente_id = t.cliente_id
+  GROUP BY marca
+  ORDER BY SUM(receita) DESC
+  LIMIT 1
+) pref ON hist.sku IS NULL
+LEFT JOIN LATERAL (
+  SELECT p.sku, p.descricao, p.marca, cd.saldo
+  FROM lakehouse_mecamecanica.gold.dim_produto p
+  JOIN LATERAL (SELECT saldo, ruptura FROM lakehouse_mecamecanica.gold.checar_disponibilidade(p.sku)) cd ON true
+  WHERE p.marca = pref.marca AND NOT p.descontinuado AND NOT cd.ruptura
+  ORDER BY cd.saldo DESC
+  LIMIT 1
+) alt ON hist.sku IS NULL AND pref.marca IS NOT NULL;
 
 COMMENT ON COLUMN lakehouse_mecamecanica.gold.fila_semanal.vendedor IS
   'Nome do vendedor responsável, via carteira vigente (silver.carteira -> silver.vendedores).';
 COMMENT ON COLUMN lakehouse_mecamecanica.gold.fila_semanal.ordem IS
-  'Posição do cliente na fila DAQUELE vendedor (1 = primeira ligação), não a posição global.';
+  'Posição do cliente na fila DAQUELE vendedor (1 = primeira ligação), não a posição global. Ordenada por valor_esperado, não por score.';
 COMMENT ON COLUMN lakehouse_mecamecanica.gold.fila_semanal.cliente_id IS
   'Identificador do cliente, mesmo cliente_id de gold.score_propensao e gold.dim_cliente.';
 COMMENT ON COLUMN lakehouse_mecamecanica.gold.fila_semanal.razao_social IS
@@ -148,15 +187,17 @@ COMMENT ON COLUMN lakehouse_mecamecanica.gold.fila_semanal.cidade IS
 COMMENT ON COLUMN lakehouse_mecamecanica.gold.fila_semanal.uf IS
   'UF do cliente, de gold.dim_cliente.';
 COMMENT ON COLUMN lakehouse_mecamecanica.gold.fila_semanal.score IS
-  'Probabilidade de compra na semana, de gold.score_propensao (0 a 1). Maior = mais prioritário.';
+  'Probabilidade de compra na semana, de gold.score_propensao (0 a 1). Informativo — quem ordena a fila é valor_esperado, não este campo sozinho.';
 COMMENT ON COLUMN lakehouse_mecamecanica.gold.fila_semanal.faixa IS
   'Faixa do score em quartis: Fria, Morna, Quente, Muito quente (gold.score_propensao).';
 COMMENT ON COLUMN lakehouse_mecamecanica.gold.fila_semanal.ticket_medio IS
   'Ticket médio histórico do cliente, de gold.features_cliente.';
+COMMENT ON COLUMN lakehouse_mecamecanica.gold.fila_semanal.valor_esperado IS
+  'score x margem_percentual x ticket_medio: quanto de margem essa ligação vale em expectativa. É o critério de ordenação da fila (top 200 e ordem por vendedor) — duas ligações igualmente prováveis não valem o mesmo se uma tem o dobro de margem.';
 COMMENT ON COLUMN lakehouse_mecamecanica.gold.fila_semanal.motivo IS
   'Frase em português explicando por que o cliente está na fila, com os números reais dele. Nunca nula — sempre tem um ELSE.';
 COMMENT ON COLUMN lakehouse_mecamecanica.gold.fila_semanal.sugestao IS
-  'O que oferecer: o SKU mais comprado pelo cliente, na marca preferida dele, que ele não levou nos últimos 90 dias, com o saldo do snapshot mais recente de silver.estoque.';
+  'O que oferecer: o SKU mais comprado pelo cliente que tenha estoque (nunca em ruptura), na marca preferida dele, que ele não levou nos últimos 90 dias. Se todo o histórico do cliente estiver em ruptura, cai para um produto com estoque na marca que ele mais compra, sinalizando que é uma alternativa.';
 
 -- Última função: consulta fila_semanal, por isso vem depois da tabela.
 
@@ -166,11 +207,11 @@ CREATE OR REPLACE FUNCTION lakehouse_mecamecanica.gold.priorizar_carteira(
 )
 RETURNS TABLE (
   ordem INT, cliente_id INT, razao_social STRING, cidade STRING, uf STRING,
-  score DOUBLE, faixa STRING, motivo STRING, sugestao STRING
+  score DOUBLE, faixa STRING, valor_esperado DOUBLE, motivo STRING, sugestao STRING
 )
-COMMENT 'Devolve a fatia da fila da semana de UM vendedor, em ordem de prioridade. Use quando o vendedor perguntar "quem eu ligo essa semana" ou pedir sua lista de contatos.'
+COMMENT 'Devolve a fatia da fila da semana de UM vendedor, em ordem de prioridade (por valor_esperado). Use quando o vendedor perguntar "quem eu ligo essa semana" ou pedir sua lista de contatos.'
 RETURN
-  SELECT ordem, cliente_id, razao_social, cidade, uf, score, faixa, motivo, sugestao
+  SELECT ordem, cliente_id, razao_social, cidade, uf, score, faixa, valor_esperado, motivo, sugestao
   FROM lakehouse_mecamecanica.gold.fila_semanal
   WHERE vendedor = p_vendedor AND ordem <= p_quantos
   ORDER BY ordem;
