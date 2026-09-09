@@ -5,6 +5,26 @@ import type { SQLTypeMarker, SQLStringMarker, SQLNumberMarker, SQLBooleanMarker,
 
 declare module "@databricks/appkit-ui/react" {
   interface QueryRegistry {
+    acompanhamento: {
+        name: "acompanhamento";
+        parameters: Record<string, never>;
+        result: Array<{
+          /** Nome do vendedor responsável, via carteira vigente (silver.carteira -> silver.vendedores). */
+          vendedor: string;
+          /** @sqlType BIGINT */
+          na_fila: number;
+          /** @sqlType BIGINT */
+          trabalhados: number;
+          /** @sqlType BIGINT */
+          vendeu: number;
+          /** @sqlType BIGINT */
+          vai_pensar: number;
+          /** @sqlType BIGINT */
+          sem_interesse: number;
+          /** @sqlType BIGINT */
+          nao_atendeu: number;
+        }>;
+      };
     fila: {
         name: "fila";
         parameters: {
@@ -34,6 +54,10 @@ declare module "@databricks/appkit-ui/react" {
           motivo: string;
           /** O que oferecer: o SKU mais comprado pelo cliente, na marca preferida dele, que ele não levou nos últimos 90 dias, com o saldo do snapshot mais recente de silver.estoque. */
           sugestao: string;
+          /** Resultado da ligação: vendeu, vai_pensar, sem_interesse ou nao_atendeu. */
+          retorno_status: string;
+          /** Texto livre do vendedor sobre a ligação. */
+          retorno_comentario: string;
         }>;
       };
     kpis_semana: {

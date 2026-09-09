@@ -1,17 +1,25 @@
 -- @param vendedor STRING = Todos
--- Os 200 contatos da semana, com o texto pronto para leitura humana.
+-- A fila da semana com o último retorno já registrado de cada cliente.
 -- 'Todos' devolve os 200; qualquer outro valor filtra por vendedor.
-SELECT   vendedor,
-         ordem,
-         cliente_id,
-         razao_social,
-         cidade,
-         uf,
-         score,
-         faixa,
-         ticket_medio,
-         motivo,
-         sugestao
-FROM     lakehouse_mecamecanica.gold.fila_semanal
-WHERE    :vendedor = 'Todos' OR vendedor = :vendedor
-ORDER BY score DESC
+WITH ultimo_retorno AS (
+  SELECT cliente_id, status, comentario, registrado_em
+  FROM   lakehouse_mecamecanica.gold.retorno_ligacao
+  QUALIFY ROW_NUMBER() OVER (PARTITION BY cliente_id ORDER BY registrado_em DESC) = 1
+)
+SELECT   f.vendedor,
+         f.ordem,
+         f.cliente_id,
+         f.razao_social,
+         f.cidade,
+         f.uf,
+         f.score,
+         f.faixa,
+         f.ticket_medio,
+         f.motivo,
+         f.sugestao,
+         r.status      AS retorno_status,
+         r.comentario  AS retorno_comentario
+FROM     lakehouse_mecamecanica.gold.fila_semanal f
+LEFT JOIN ultimo_retorno r ON r.cliente_id = f.cliente_id
+WHERE    :vendedor = 'Todos' OR f.vendedor = :vendedor
+ORDER BY f.score DESC

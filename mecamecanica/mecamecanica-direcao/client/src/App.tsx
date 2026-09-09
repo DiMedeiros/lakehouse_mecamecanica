@@ -10,6 +10,7 @@ import {
 } from '@databricks/appkit-ui/react';
 import { Menu } from 'lucide-react';
 import { SemanaPage } from './pages/semana/SemanaPage';
+import { AcompanhamentoPage } from './pages/acompanhamento/AcompanhamentoPage';
 import { GeniePage } from './pages/genie/GeniePage';
 
 const navLinkClass = ({ isActive }: { isActive: boolean }) =>
@@ -41,6 +42,9 @@ function NavLinks({
     <nav className={className}>
       <NavLink to="/" end className={linkClass} onClick={onClick}>
         A semana
+      </NavLink>
+      <NavLink to="/acompanhamento" className={linkClass} onClick={onClick}>
+        Acompanhamento
       </NavLink>
       <NavLink to="/perguntar" className={linkClass} onClick={onClick}>
         Perguntar
@@ -93,6 +97,7 @@ const router = createBrowserRouter([
     element: <Layout />,
     children: [
       { path: '/', element: <SemanaPage /> },
+      { path: '/acompanhamento', element: <AcompanhamentoPage /> },
       { path: '/perguntar', element: <GeniePage /> },
     ],
   },
