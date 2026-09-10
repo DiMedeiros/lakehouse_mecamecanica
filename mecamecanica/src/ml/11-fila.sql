@@ -85,8 +85,12 @@ RETURN
 -- motivo e sugestao são texto explicativo em português — motivo nunca é nulo
 -- (sempre tem um ELSE); sugestao vem de sugerir_produtos + checar_disponibilidade,
 -- e nunca oferece um SKU em ruptura (medido: 34 das 200 sugestões antigas
--- ofereciam saldo zero — 17% da fila). Sem estoque no item de costume, cai
--- para uma alternativa da marca preferida do cliente que tenha saldo.
+-- ofereciam saldo zero — 17% da fila). Quando o item de costume do cliente
+-- está em ruptura, a sugestão NOMEIA os dois (o que faltou e o substituto),
+-- para o vendedor comunicar a troca de forma consciente — nunca troca
+-- silenciosa. O substituto é escolhido por categoria + aplicação (o que
+-- garante que a peça serve no lugar), nunca por marca: marca é preferência,
+-- não compatibilidade, e só desempata entre candidatos já compatíveis.
 
 CREATE OR REPLACE TABLE lakehouse_mecamecanica.gold.fila_semanal
 COMMENT 'As 200 ligações da semana, uma linha por cliente elegível (carteira vigente, vendedor ativo), ordenadas globalmente por valor esperado (score x margem x ticket médio) e numeradas por vendedor. Traz o motivo em português e uma sugestão de recompra com estoque garantido — é desta tabela que sai a lista que o vendedor abre.'
@@ -135,44 +139,82 @@ SELECT
     ELSE 'Score alto de propensão de compra esta semana.'
   END AS motivo,
   CASE
-    WHEN hist.sku IS NOT NULL
-      THEN CONCAT('Oferecer ', hist.descricao, ' (', hist.sku, ') — ', hist.marca,
-                   '. Saldo atual: ', hist.saldo, ' un.')
-    WHEN alt.sku IS NOT NULL
-      THEN CONCAT('Item de costume sem estoque. Alternativa da marca ', alt.marca, ': ',
-                   alt.descricao, ' (', alt.sku, '). Saldo atual: ', alt.saldo, ' un.')
-    ELSE 'Sem sugestão de recompra: nenhum SKU do histórico do cliente tem estoque disponível.'
+    WHEN preferido.sku IS NULL
+      THEN 'Sem sugestão de recompra: cliente sem histórico de SKU parado há mais de 90 dias.'
+    WHEN NOT disp_preferido.ruptura
+      THEN CONCAT('Oferecer ', preferido.descricao, ' (', preferido.sku, ') — ', preferido.marca,
+                   '. Saldo atual: ', disp_preferido.saldo, ' un.')
+    WHEN COALESCE(subst_historico.sku, subst_cat_marca.sku, subst_cat_geral.sku) IS NOT NULL
+      THEN CONCAT('Cliente costuma levar ', preferido.descricao, ' (', preferido.marca,
+                   '), sem estoque. Oferecer substituto: ',
+                   COALESCE(subst_historico.descricao, subst_cat_marca.descricao, subst_cat_geral.descricao), ' (',
+                   COALESCE(subst_historico.sku, subst_cat_marca.sku, subst_cat_geral.sku), ') — ',
+                   COALESCE(subst_historico.marca, subst_cat_marca.marca, subst_cat_geral.marca),
+                   '. Saldo atual: ', COALESCE(subst_historico.saldo, subst_cat_marca.saldo, subst_cat_geral.saldo), ' un.')
+    ELSE CONCAT('Cliente costuma levar ', preferido.descricao, ' (', preferido.marca,
+                '), mas está sem estoque e não há substituto da mesma categoria disponível.')
   END AS sugestao
 FROM top200 t
 JOIN lakehouse_mecamecanica.gold.dim_cliente dc ON dc.cliente_id = t.cliente_id
--- SKU do histórico do cliente, o mais comprado entre os que têm estoque —
--- nunca sugere o mais vendido cru, sem checar ruptura primeiro.
+-- O produto que o cliente REALMENTE prefere, independente de estoque: o mais
+-- comprado no histórico. É o que entra no texto quando falta — nomear o item
+-- exato, não só avisar genericamente que há uma troca.
+LEFT JOIN LATERAL (
+  SELECT sp.sku, sp.descricao, sp.marca, sp.categoria, p.aplicacao
+  FROM lakehouse_mecamecanica.gold.sugerir_produtos(t.cliente_id) sp
+  JOIN lakehouse_mecamecanica.gold.dim_produto p ON p.sku = sp.sku
+  ORDER BY sp.quantidade_total DESC
+  LIMIT 1
+) preferido ON true
+LEFT JOIN LATERAL (
+  SELECT saldo, ruptura FROM lakehouse_mecamecanica.gold.checar_disponibilidade(preferido.sku)
+) disp_preferido ON preferido.sku IS NOT NULL
+-- Substituto de categoria: só entra em jogo quando o preferido está em
+-- ruptura. "Similar" para autopeças é categoria + aplicação (o que garante
+-- que a peça serve no lugar da outra) — marca é preferência, não
+-- compatibilidade, por isso NUNCA é o critério que define o substituto.
+-- Primeira tentativa: outro item que o PRÓPRIO cliente já comprou antes,
+-- da mesma categoria e aplicação do preferido, com estoque.
 LEFT JOIN LATERAL (
   SELECT sp.sku, sp.descricao, sp.marca, cd.saldo
   FROM lakehouse_mecamecanica.gold.sugerir_produtos(t.cliente_id) sp
+  JOIN lakehouse_mecamecanica.gold.dim_produto p2 ON p2.sku = sp.sku
   JOIN LATERAL (SELECT saldo, ruptura FROM lakehouse_mecamecanica.gold.checar_disponibilidade(sp.sku)) cd ON true
-  WHERE NOT cd.ruptura
+  WHERE sp.categoria = preferido.categoria
+    AND p2.aplicacao = preferido.aplicacao
+    AND sp.sku <> preferido.sku
+    AND NOT cd.ruptura
   ORDER BY sp.quantidade_total DESC
   LIMIT 1
-) hist ON true
--- Só calcula a marca preferida (e a alternativa) quando o histórico do
--- cliente inteiro está em ruptura — é o caminho raro, não o comum.
+) subst_historico ON disp_preferido.ruptura
+-- Segunda tentativa: qualquer produto do catálogo, mesma categoria e
+-- aplicação, primeiro tentando a marca preferida do cliente...
 LEFT JOIN LATERAL (
-  SELECT marca
-  FROM lakehouse_mecamecanica.gold.fato_vendas
+  SELECT marca FROM lakehouse_mecamecanica.gold.fato_vendas
   WHERE cliente_id = t.cliente_id
-  GROUP BY marca
-  ORDER BY SUM(receita) DESC
-  LIMIT 1
-) pref ON hist.sku IS NULL
+  GROUP BY marca ORDER BY SUM(receita) DESC LIMIT 1
+) mp ON disp_preferido.ruptura AND subst_historico.sku IS NULL
 LEFT JOIN LATERAL (
   SELECT p.sku, p.descricao, p.marca, cd.saldo
   FROM lakehouse_mecamecanica.gold.dim_produto p
   JOIN LATERAL (SELECT saldo, ruptura FROM lakehouse_mecamecanica.gold.checar_disponibilidade(p.sku)) cd ON true
-  WHERE p.marca = pref.marca AND NOT p.descontinuado AND NOT cd.ruptura
+  WHERE p.categoria = preferido.categoria AND p.aplicacao = preferido.aplicacao
+    AND p.sku <> preferido.sku AND NOT p.descontinuado AND NOT cd.ruptura
+    AND p.marca = mp.marca
   ORDER BY cd.saldo DESC
   LIMIT 1
-) alt ON hist.sku IS NULL AND pref.marca IS NOT NULL;
+) subst_cat_marca ON disp_preferido.ruptura AND subst_historico.sku IS NULL
+-- ...e só quando nem isso existe, qualquer marca do catálogo com estoque.
+LEFT JOIN LATERAL (
+  SELECT p.sku, p.descricao, p.marca, cd.saldo
+  FROM lakehouse_mecamecanica.gold.dim_produto p
+  JOIN LATERAL (SELECT saldo, ruptura FROM lakehouse_mecamecanica.gold.checar_disponibilidade(p.sku)) cd ON true
+  WHERE p.categoria = preferido.categoria AND p.aplicacao = preferido.aplicacao
+    AND p.sku <> preferido.sku AND NOT p.descontinuado AND NOT cd.ruptura
+  ORDER BY cd.saldo DESC
+  LIMIT 1
+) subst_cat_geral
+  ON disp_preferido.ruptura AND subst_historico.sku IS NULL AND subst_cat_marca.sku IS NULL;
 
 COMMENT ON COLUMN lakehouse_mecamecanica.gold.fila_semanal.vendedor IS
   'Nome do vendedor responsável, via carteira vigente (silver.carteira -> silver.vendedores).';
@@ -197,7 +239,7 @@ COMMENT ON COLUMN lakehouse_mecamecanica.gold.fila_semanal.valor_esperado IS
 COMMENT ON COLUMN lakehouse_mecamecanica.gold.fila_semanal.motivo IS
   'Frase em português explicando por que o cliente está na fila, com os números reais dele. Nunca nula — sempre tem um ELSE.';
 COMMENT ON COLUMN lakehouse_mecamecanica.gold.fila_semanal.sugestao IS
-  'O que oferecer: o SKU mais comprado pelo cliente que tenha estoque (nunca em ruptura), na marca preferida dele, que ele não levou nos últimos 90 dias. Se todo o histórico do cliente estiver em ruptura, cai para um produto com estoque na marca que ele mais compra, sinalizando que é uma alternativa.';
+  'O que oferecer: o SKU mais comprado pelo cliente, que ele não levou nos últimos 90 dias. Se esse item estiver em ruptura, nomeia os dois — o que faltou e o substituto — priorizando mesma categoria e aplicação (compatibilidade real) sobre marca (preferência), primeiro no próprio histórico do cliente, depois no catálogo inteiro.';
 
 -- Última função: consulta fila_semanal, por isso vem depois da tabela.
 
