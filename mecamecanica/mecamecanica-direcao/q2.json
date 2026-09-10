@@ -1,0 +1,23 @@
+{
+  "conversation": {
+    "conversation_id": "01f1acc3267612269af2651e9bd09b1f",
+    "created_timestamp": 1789008958905,
+    "id": "01f1acc3267612269af2651e9bd09b1f",
+    "last_updated_timestamp": 1789008958905,
+    "space_id": "01f1a8d3ced7150aa39cf4b70c4044cf",
+    "title": "Quais os contatos da vendedora Fernanda Costa essa semana, com a sugestão de produto para cada um?",
+    "user_id": 2434199814599330
+  },
+  "conversation_id": "01f1acc3267612269af2651e9bd09b1f",
+  "message": {
+    "content": "Quais os contatos da vendedora Fernanda Costa essa semana, com a sugestão de produto para cada um?",
+    "conversation_id": "01f1acc3267612269af2651e9bd09b1f",
+    "created_timestamp": 1789008958960,
+    "id": "01f1acc3267e1376a9f72c80be5eb891",
+    "message_id": "01f1acc3267e1376a9f72c80be5eb891",
+    "space_id": "01f1a8d3ced7150aa39cf4b70c4044cf",
+    "status": "SUBMITTED",
+    "user_id": 2434199814599330
+  },
+  "message_id": "01f1acc3267e1376a9f72c80be5eb891"
+}
