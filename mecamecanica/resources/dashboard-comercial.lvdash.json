@@ -424,9 +424,16 @@
                   }
                 },
                 "color": {
-                  "fieldName": "marca",
+                  "fieldName": "measure(Receita Total)",
                   "scale": {
-                    "type": "categorical"
+                    "type": "quantitative",
+                    "colorRamp": {
+                      "mode": "custom-sequential",
+                      "colors": {
+                        "start": "#FFEDD5",
+                        "end": "#9A3412"
+                      }
+                    }
                   },
                   "legend": {
                     "hide": true
@@ -498,9 +505,16 @@
                   }
                 },
                 "color": {
-                  "fieldName": "canal",
+                  "fieldName": "measure(Receita Total)",
                   "scale": {
-                    "type": "categorical"
+                    "type": "quantitative",
+                    "colorRamp": {
+                      "mode": "custom-sequential",
+                      "colors": {
+                        "start": "#A1A1AA",
+                        "end": "#262624"
+                      }
+                    }
                   },
                   "legend": {
                     "hide": true
@@ -553,13 +567,6 @@
               "widgetType": "bar",
               "encodings": {
                 "x": {
-                  "fieldName": "categoria",
-                  "scale": {
-                    "type": "categorical"
-                  },
-                  "displayName": "Categoria"
-                },
-                "y": {
                   "fieldName": "measure(Margem Pct)",
                   "scale": {
                     "type": "quantitative"
@@ -573,10 +580,24 @@
                     }
                   }
                 },
-                "color": {
+                "y": {
                   "fieldName": "categoria",
                   "scale": {
                     "type": "categorical"
+                  },
+                  "displayName": "Categoria"
+                },
+                "color": {
+                  "fieldName": "measure(Margem Pct)",
+                  "scale": {
+                    "type": "quantitative",
+                    "colorRamp": {
+                      "mode": "custom-sequential",
+                      "colors": {
+                        "start": "#EAD9C4",
+                        "end": "#5C3317"
+                      }
+                    }
                   },
                   "legend": {
                     "hide": true
@@ -587,7 +608,7 @@
                 "showTitle": true,
                 "title": "Margem % por categoria (crescente)",
                 "showDescription": true,
-                "description": "Quem vende muito e ganha pouco fica \u00e0 esquerda."
+                "description": "Quem vende muito e ganha pouco fica no topo."
               }
             }
           },
@@ -595,7 +616,7 @@
             "x": 0,
             "y": 15,
             "width": 12,
-            "height": 5
+            "height": 7
           }
         },
         {
@@ -667,7 +688,7 @@
           },
           "position": {
             "x": 0,
-            "y": 20,
+            "y": 22,
             "width": 12,
             "height": 7
           }
