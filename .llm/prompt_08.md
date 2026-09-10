@@ -24,12 +24,20 @@ curso:**
    contra o catálogo antes de aplicar: troca 29 dos 200 clientes e sobe o
    valor esperado total de R$ 203.066,74 para **R$ 209.344,50 (+3,1%)**,
    com o mesmo esforço de ligação.
-2. **Sugestão nunca oferece SKU em ruptura.** Eram 34 das 200 sugestões
-   antigas com saldo zero (17% da fila). `sugerir_produtos` +
-   `checar_disponibilidade` agora são combinados com filtro de ruptura
-   antes de compor a coluna; quando todo o histórico do cliente está em
-   ruptura, cai para uma alternativa com estoque na marca que ele mais
-   compra (3 dos 200 clientes usaram esse caminho, na primeira execução).
+2. **Sugestão nunca oferece SKU em ruptura, e nomeia a substituição de
+   forma consciente.** Eram 34 das 200 sugestões antigas com saldo zero
+   (17% da fila). Numa primeira versão, o substituto era escolhido só por
+   marca preferida do cliente (sem exigir a mesma categoria — podia
+   sugerir qualquer peça da marca certa no lugar da que faltou) e o texto
+   só avisava genericamente que havia uma troca, sem nomear o produto
+   original. Corrigido depois de uma conversa sobre o que "similar"
+   significa para autopeças: a compatibilidade real é **categoria +
+   aplicação** (uma pastilha de freio só substitui outra pastilha de freio,
+   da mesma linha de veículo) — marca é preferência, não compatibilidade, e
+   só desempata entre candidatos já compatíveis. A sugestão agora sempre
+   identifica o produto preferido do cliente e, quando ele falta, nomeia
+   **os dois**: "Cliente costuma levar X, sem estoque. Oferecer substituto:
+   Y." Na versão final, 40 dos 200 contatos caem em substituição.
 
 ## O prompt (adaptado, incluindo as duas melhorias)
 
@@ -46,13 +54,16 @@ ordem: ROW_NUMBER() PARTITION BY vendedor ORDER BY valor_esperado DESC.
 motivo: CASE explicando em português (comprou lançamento recente > cliente
   grande > atrasado no ciclo > oportunidade aberta > ELSE score alto).
 
-sugestao: LEFT JOIN LATERAL em sugerir_produtos(cliente_id) + checar_
-  disponibilidade(sku), filtrando WHERE NOT ruptura, top 1 por
-  quantidade_total. Se todo o histórico estiver em ruptura, LEFT JOIN
-  LATERAL numa segunda etapa: marca preferida do cliente (maior receita em
-  fato_vendas) + dim_produto não descontinuado + checar_disponibilidade,
-  top 1 por saldo. Texto final diferencia "Oferecer X" de "Item de costume
-  sem estoque. Alternativa da marca Y".
+sugestao: identifique o produto PREFERIDO do cliente (top 1 de
+  sugerir_produtos por quantidade_total, independente de estoque) e
+  verifique disponibilidade com checar_disponibilidade. Se disponível,
+  "Oferecer X". Se em ruptura, procure substituto da MESMA categoria +
+  aplicação (nunca só mesma marca): primeiro no próprio histórico do
+  cliente (sugerir_produtos filtrado por categoria/aplicação do preferido),
+  depois no catálogo inteiro priorizando a marca que o cliente mais compra,
+  por fim qualquer marca com estoque. Texto nomeia os dois produtos:
+  "Cliente costuma levar X, sem estoque. Oferecer substituto: Y." Sem
+  substituto em nenhum caminho, diz isso explicitamente.
 
 As quatro funções (checar_disponibilidade, sugerir_produtos,
 contexto_cliente, priorizar_carteira) vêm primeiro no arquivo (não
@@ -75,8 +86,15 @@ WHERE sugestao LIKE '%Saldo atual: 0 un%';
 -- 0 (eram 34 antes da correção)
 
 SELECT COUNT(*) FROM lakehouse_mecamecanica.gold.fila_semanal
-WHERE sugestao LIKE 'Item de costume sem estoque%';
--- 3 (o caminho raro, testado e confirmado funcionando)
+WHERE sugestao LIKE 'Cliente costuma levar%sem estoque%';
+-- 40 (substituição explícita, nomeando os dois produtos)
 ```
 
-Rodado ponta a ponta no workspace, com o modelo v7.
+Rodado ponta a ponta no workspace, com o modelo v7. A busca por candidato
+similar usa LATERAL correlacionado a duas colunas de fora ao mesmo tempo
+(`t.cliente_id` e `preferido.categoria`/`aplicacao`) — descoberto durante o
+teste que Databricks SQL não aceita referenciar uma coluna de um LATERAL
+anterior dentro do `ORDER BY` de outro LATERAL (`UNSUPPORTED_SUBQUERY_
+EXPRESSION_CATEGORY`); a correção foi mover essa comparação para o `WHERE`,
+dividindo a busca por marca preferida e a busca geral em dois LATERALs
+sequenciais em vez de um só com `ORDER BY CASE`.
