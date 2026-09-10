@@ -219,7 +219,13 @@ function Conteudo({
                     <TableHead className="w-[7rem] text-right">Valor esperado</TableHead>
                     <TableHead className="w-[16rem]">Por que ligar</TableHead>
                     <TableHead className="w-[14rem]">O que oferecer</TableHead>
-                    <TableHead className="w-[13rem]">Como foi a ligação</TableHead>
+                    {/* sticky: fica visível mesmo quando a linha rola para o
+                        lado (colunas de texto longo empurram a tabela além da
+                        tela) — sem isso os botões de retorno ficam cortados
+                        fora da área visível. */}
+                    <TableHead className="w-[13rem] sticky right-0 z-10 bg-card border-l">
+                      Como foi a ligação
+                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -251,7 +257,7 @@ function Conteudo({
                         <TableCell className="text-sm whitespace-normal break-words">
                           {linha.sugestao}
                         </TableCell>
-                        <TableCell className="whitespace-normal">
+                        <TableCell className="whitespace-normal sticky right-0 bg-card border-l">
                           {linha.retorno_status ? (
                             <div className="space-y-1">
                               <Badge variant={linha.retorno_status === 'vendeu' ? 'default' : 'secondary'}>
